@@ -15,7 +15,9 @@ api.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem("foxtrot_token");
-      // Let RequireAuth handle the redirect rather than hard-navigating
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(err);
   }
