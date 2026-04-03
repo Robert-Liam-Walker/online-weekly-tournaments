@@ -16,6 +16,7 @@ import { tournamentRoutes } from "./routes/tournaments";
 import { subscriptionRoutes } from "./routes/subscriptions";
 import { stripeWebhookRoute } from "./routes/webhooks";
 import { registerSocketHandlers } from "./plugins/socket";
+import { startTournamentScheduler } from "./lib/scheduleTournaments";
 
 const app = Fastify({ logger: true });
 const httpServer = createServer(app.server);
@@ -52,6 +53,7 @@ async function main() {
   await app.register(tournamentRoutes, { prefix: "/api/tournaments" });
 
   registerSocketHandlers(io);
+  startTournamentScheduler();
 
   const port = Number(process.env.PORT ?? 3001);
   await app.listen({ port, host: "0.0.0.0" });
