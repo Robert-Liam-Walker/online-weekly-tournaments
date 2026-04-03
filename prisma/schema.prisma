@@ -28,6 +28,18 @@ model User {
   seriesAsP1         Series[]           @relation("player1")
   seriesAsP2         Series[]           @relation("player2")
   tournamentEntries  TournamentEntry[]
+  chatMessages       ChatMessage[]
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  channel   String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([channel, createdAt])
 }
 
 model ArenaEntry {

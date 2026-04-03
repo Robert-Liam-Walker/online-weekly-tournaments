@@ -4,11 +4,13 @@ import Arena from "./pages/Arena";
 import Tournaments from "./pages/Tournaments";
 import Login from "./pages/Login";
 import Friends from "./pages/Friends";
+import Feed from "./pages/Feed";
 import Series from "./pages/Series";
 import Subscribe from "./pages/Subscribe";
 import Settings from "./pages/Settings";
 import RequireAuth from "./components/RequireAuth";
 import ChallengeNotification from "./components/ChallengeNotification";
+import FoxIcon from "./components/FoxIcon";
 import { useAuthStore } from "./hooks/useAuth";
 
 const queryClient = new QueryClient({
@@ -28,10 +30,12 @@ function Nav() {
 
   return (
     <nav className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center gap-2">
-      <span className="text-white font-bold text-lg mr-4">FoxTrot</span>
+      <FoxIcon size={22} />
+      <span className="text-white font-bold text-lg mr-4 ml-1.5">FoxTrot</span>
       <NavLink to="/arena" className={linkClass}>Arena</NavLink>
       <NavLink to="/tournaments" className={linkClass}>Tournaments</NavLink>
       <NavLink to="/friends" className={linkClass}>Friends</NavLink>
+      <NavLink to="/feed" className={linkClass}>Feed</NavLink>
       <div className="ml-auto flex items-center gap-3">
         {user && (
           <span className="text-gray-400 text-sm font-mono">{user.connectCode}</span>
@@ -77,6 +81,7 @@ export default function App() {
                     <Route path="/arena" element={<Arena />} />
                     <Route path="/tournaments" element={<Tournaments />} />
                     <Route path="/friends" element={<Friends />} />
+                    <Route path="/feed" element={<Feed />} />
                     <Route path="/tournaments/success" element={<Tournaments />} />
                     <Route path="/series/:id" element={<Series />} />
                     <Route path="/subscribe" element={<Subscribe />} />

@@ -14,6 +14,7 @@ import { seriesRoutes } from "./routes/series";
 import { friendRoutes } from "./routes/friends";
 import { tournamentRoutes } from "./routes/tournaments";
 import { subscriptionRoutes } from "./routes/subscriptions";
+import { chatRoutes } from "./routes/chat";
 import { stripeWebhookRoute } from "./routes/webhooks";
 import { registerSocketHandlers } from "./plugins/socket";
 import { startTournamentScheduler } from "./lib/scheduleTournaments";
@@ -51,6 +52,7 @@ async function main() {
   await app.register(seriesRoutes, { prefix: "/api/series" });
   await app.register(friendRoutes, { prefix: "/api/friends" });
   await app.register(tournamentRoutes, { prefix: "/api/tournaments" });
+  await app.register(chatRoutes, { prefix: "/api/chat" });
 
   registerSocketHandlers(io);
   startTournamentScheduler();

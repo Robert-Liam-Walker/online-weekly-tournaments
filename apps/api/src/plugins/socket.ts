@@ -25,6 +25,41 @@ export function registerSocketHandlers(io: Server) {
     socket.join(`user:${userId}`);
     console.log(`Socket connected: ${userId}`);
 
+    // --- Channel chat ---
+    socket.on("chat:join", ({ channel }: { channel: string }) => {
+      socket.join(`channel:${channel}`);
+    });
+
+    socket.on("chat:message", async ({ channel, content }: { channel: string; content: string }) => {
+      const trimmed = content.trim().slice(0, 500);
+      if (!trimmed) return;
+      const message = await prisma.chatMessage.create({
+        data: { channel, userId, content: trimmed },
+        include: { user: { select: { id: true, username: true } } },
+      });
+      io.to(`channel:${channel}`).emit("chat:message", message);
+    });
+
+    // --- Series chat (ephemeral — no DB) ---
+    socket.on("series:join", ({ seriesId }: { seriesId: string }) => {
+      socket.join(`series:${seriesId}`);
+    });
+
+    socket.on("series:chat:send", async ({ seriesId, content }: { seriesId: string; content: string }) => {
+      const trimmed = content.trim().slice(0, 500);
+      if (!trimmed) return;
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, username: true },
+      });
+      io.to(`series:${seriesId}`).emit("series:chat:message", {
+        userId,
+        username: user?.username ?? "Unknown",
+        content: trimmed,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
     socket.on("disconnect", async () => {
       await removeFromArena(userId);
       io.emit("arena:leave", { userId });

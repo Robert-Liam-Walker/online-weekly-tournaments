@@ -6,6 +6,7 @@ import { getSocket } from "../lib/socket";
 import { useAuthStore } from "../hooks/useAuth";
 import { Series as SeriesType } from "../types";
 import { getPermittedFolder } from "../lib/slippiFolder";
+import SeriesChat from "../components/SeriesChat";
 
 interface Game {
   id: string;
@@ -202,6 +203,13 @@ export default function SeriesPage() {
           </div>
         )}
       </div>
+
+      {/* Match chat — participants only */}
+      {isParticipant && (
+        <div className="mb-6">
+          <SeriesChat seriesId={series.id} />
+        </div>
+      )}
 
       {/* Game history */}
       {series.games.length > 0 && (
