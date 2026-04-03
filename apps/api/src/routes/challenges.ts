@@ -2,8 +2,22 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth, requireSubscription } from "../plugins/auth";
+import { io } from "../index";
 
 export async function challengeRoutes(app: FastifyInstance) {
+  // GET /api/challenges/pending — incoming pending challenges for the logged-in user
+  app.get("/pending", { preHandler: [requireAuth] }, async (request) => {
+    const userId = (request.user as { id: string }).id;
+    return prisma.challenge.findMany({
+      where: { challengedId: userId, status: "PENDING" },
+      include: {
+        challenger: { select: { id: true, username: true, connectCode: true } },
+        challenged: { select: { id: true, username: true, connectCode: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  });
+
   // POST /api/challenges — send a challenge (subscription required)
   app.post(
     "/",
@@ -48,6 +62,9 @@ export async function challengeRoutes(app: FastifyInstance) {
         },
       });
 
+      // Notify challenged user in real-time
+      io.to(`user:${body.data.challengedId}`).emit("challenge:receive", challenge);
+
       return reply.code(201).send(challenge);
     }
   );
@@ -87,7 +104,10 @@ export async function challengeRoutes(app: FastifyInstance) {
         data: { seriesId: series.id },
       });
 
-      return { challenge: updatedChallenge, series };
+      const payload = { challenge: updatedChallenge, series };
+      io.to(`user:${challenge.challengerId}`).to(`user:${userId}`).emit("challenge:accepted", payload);
+
+      return payload;
     }
   );
 

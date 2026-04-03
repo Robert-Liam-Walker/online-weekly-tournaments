@@ -3,7 +3,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Arena from "./pages/Arena";
 import Tournaments from "./pages/Tournaments";
 import Login from "./pages/Login";
+import Friends from "./pages/Friends";
+import Series from "./pages/Series";
+import Subscribe from "./pages/Subscribe";
+import Settings from "./pages/Settings";
 import RequireAuth from "./components/RequireAuth";
+import ChallengeNotification from "./components/ChallengeNotification";
 import { useAuthStore } from "./hooks/useAuth";
 
 const queryClient = new QueryClient({
@@ -51,6 +56,7 @@ function Layout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-gray-950 text-white">
       <Nav />
       <main className="py-8">{children}</main>
+      <ChallengeNotification />
     </div>
   );
 }
@@ -70,18 +76,11 @@ export default function App() {
                     <Route path="/" element={<Arena />} />
                     <Route path="/arena" element={<Arena />} />
                     <Route path="/tournaments" element={<Tournaments />} />
-                    <Route
-                      path="/friends"
-                      element={<div className="p-8 text-center text-gray-400">Friends — coming soon</div>}
-                    />
-                    <Route
-                      path="/subscribe"
-                      element={<div className="p-8 text-center text-gray-400">Subscribe — coming soon</div>}
-                    />
-                    <Route
-                      path="/settings"
-                      element={<div className="p-8 text-center text-gray-400">Settings — coming soon</div>}
-                    />
+                    <Route path="/friends" element={<Friends />} />
+                    <Route path="/series/:id" element={<Series />} />
+                    <Route path="/subscribe" element={<Subscribe />} />
+                    <Route path="/subscribe/success" element={<Subscribe />} />
+                    <Route path="/settings" element={<Settings />} />
                   </Routes>
                 </Layout>
               </RequireAuth>
