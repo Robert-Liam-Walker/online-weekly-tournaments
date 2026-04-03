@@ -11,6 +11,7 @@ import Settings from "./pages/Settings";
 import RequireAuth from "./components/RequireAuth";
 import ChallengeNotification from "./components/ChallengeNotification";
 import FoxIcon from "./components/FoxIcon";
+import RankBadge from "./components/RankBadge";
 import { useAuthStore } from "./hooks/useAuth";
 
 const queryClient = new QueryClient({
@@ -38,7 +39,10 @@ function Nav() {
       <NavLink to="/feed" className={linkClass}>Feed</NavLink>
       <div className="ml-auto flex items-center gap-3">
         {user && (
-          <span className="text-gray-400 text-sm font-mono">{user.connectCode}</span>
+          <span className="flex items-center gap-2">
+            <span className="text-gray-400 text-sm font-mono">{user.connectCode}</span>
+            <RankBadge connectCode={user.connectCode} />
+          </span>
         )}
         <NavLink to="/subscribe" className={linkClass}>Subscribe</NavLink>
         <NavLink to="/settings" className={linkClass}>Settings</NavLink>

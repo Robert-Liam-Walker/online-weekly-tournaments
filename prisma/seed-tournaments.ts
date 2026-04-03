@@ -63,9 +63,9 @@ async function main() {
       data: {
         name: `Weekly Invitational — ${label}`,
         description:
-          "$5 entry. Prize pool paid out to top 3: 50% / 25% / 10%. Best of 5, single elimination.",
+          "$5 entry. Prize pool paid out to top 3: 50% / 25% / 10%. Best of 5, double elimination.",
         scheduledAt: paidTime,
-        format: "SINGLE_ELIM",
+        format: "DOUBLE_ELIM",
         seriesFormat: "BO5",
         maxEntrants: 16,
         entryFee: 500, // $5.00 in cents

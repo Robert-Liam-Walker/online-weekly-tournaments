@@ -7,6 +7,7 @@ import { useAuthStore } from "../hooks/useAuth";
 import { Series as SeriesType } from "../types";
 import { getPermittedFolder } from "../lib/slippiFolder";
 import SeriesChat from "../components/SeriesChat";
+import RankBadge from "../components/RankBadge";
 
 interface Game {
   id: string;
@@ -182,12 +183,18 @@ export default function SeriesPage() {
             <p className="text-gray-400 text-sm mb-1">{series.player1.username}</p>
             <p className="text-5xl font-bold text-white">{series.p1Wins}</p>
             <p className="text-gray-500 text-xs font-mono mt-1">{series.player1.connectCode}</p>
+            <div className="mt-1 flex justify-center">
+              <RankBadge connectCode={series.player1.connectCode} showRecord />
+            </div>
           </div>
           <div className="text-gray-600 text-2xl font-light">vs</div>
           <div className="text-center">
             <p className="text-gray-400 text-sm mb-1">{series.player2.username}</p>
             <p className="text-5xl font-bold text-white">{series.p2Wins}</p>
             <p className="text-gray-500 text-xs font-mono mt-1">{series.player2.connectCode}</p>
+            <div className="mt-1 flex justify-center">
+              <RankBadge connectCode={series.player2.connectCode} showRecord />
+            </div>
           </div>
         </div>
 
