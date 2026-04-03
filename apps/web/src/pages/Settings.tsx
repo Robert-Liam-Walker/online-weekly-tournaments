@@ -1,8 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuthStore } from "../hooks/useAuth";
+import {
+  saveSlippiFolder,
+  loadSlippiFolder,
+  clearSlippiFolder,
+} from "../lib/slippiFolder";
+
+const supportsFileSystemAccess = "showDirectoryPicker" in window;
 
 interface UserProfile {
   id: string;
@@ -18,6 +25,12 @@ export default function Settings() {
   const { isSubscribed } = useAuthStore();
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalError, setPortalError] = useState("");
+  const [folderName, setFolderName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!supportsFileSystemAccess) return;
+    loadSlippiFolder().then((h) => setFolderName(h?.name ?? null));
+  }, []);
 
   const { data: profile, isLoading } = useQuery<UserProfile>({
     queryKey: ["me"],
@@ -76,6 +89,48 @@ export default function Settings() {
           />
         </dl>
       </div>
+
+      {/* Slippi folder */}
+      {supportsFileSystemAccess && (
+        <div className="bg-gray-800 rounded-xl p-6 mb-4">
+          <h2 className="text-white font-semibold mb-1">Slippi Replays Folder</h2>
+          <p className="text-gray-400 text-sm mb-4">
+            Connect your Slippi replays folder and FoxTrot will automatically detect game results during a series — no uploads needed.
+          </p>
+          {folderName ? (
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-400" />
+                <span className="text-green-300 text-sm font-medium">{folderName}</span>
+              </div>
+              <button
+                onClick={async () => {
+                  await clearSlippiFolder();
+                  setFolderName(null);
+                }}
+                className="text-gray-500 hover:text-red-400 text-sm transition-colors ml-auto"
+              >
+                Disconnect
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={async () => {
+                try {
+                  const handle = await (window as unknown as { showDirectoryPicker: () => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker();
+                  await saveSlippiFolder(handle);
+                  setFolderName(handle.name);
+                } catch {
+                  // User cancelled
+                }
+              }}
+              className="bg-gray-700 hover:bg-gray-600 text-white px-5 py-2.5 rounded-lg font-medium transition-colors"
+            >
+              Connect Folder
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Subscription */}
       <div className="bg-gray-800 rounded-xl p-6">

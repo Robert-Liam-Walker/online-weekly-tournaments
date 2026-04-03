@@ -5,6 +5,7 @@ import { api } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { useAuthStore } from "../hooks/useAuth";
 import { Series as SeriesType } from "../types";
+import { getPermittedFolder } from "../lib/slippiFolder";
 
 interface Game {
   id: string;
@@ -20,6 +21,7 @@ interface SeriesDetail extends SeriesType {
 const supportsFileSystemAccess = "showDirectoryPicker" in window;
 
 export default function SeriesPage() {
+
   const { id } = useParams<{ id: string }>();
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
@@ -54,11 +56,18 @@ export default function SeriesPage() {
     return () => { socket.off("series:update"); };
   }, [id, queryClient]);
 
+  // Auto-start watching from folder saved in Settings
+  useEffect(() => {
+    if (!supportsFileSystemAccess) return;
+    getPermittedFolder().then((handle) => {
+      if (handle) startWatchingHandle(handle);
+    });
+    return () => { if (watchIntervalRef.current) clearInterval(watchIntervalRef.current); };
+  }, []);
+
   // Stop watching when series completes
   useEffect(() => {
-    if (series?.status === "COMPLETED" && watching) {
-      stopWatching();
-    }
+    if (series?.status === "COMPLETED" && watching) stopWatching();
   }, [series?.status]);
 
   const submitReplayFile = useCallback(async (file: File) => {
@@ -82,33 +91,28 @@ export default function SeriesPage() {
     }
   }, [id, queryClient]);
 
-  async function startWatching() {
-    try {
-      const handle = await (window as unknown as { showDirectoryPicker: () => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker();
-      dirHandleRef.current = handle;
-      seenFilesRef.current = new Set();
-      seriesStartRef.current = Date.now();
-      setWatching(true);
+  function startWatchingHandle(handle: FileSystemDirectoryHandle) {
+    dirHandleRef.current = handle;
+    seenFilesRef.current = new Set();
+    seriesStartRef.current = Date.now();
+    setWatching(true);
 
-      watchIntervalRef.current = setInterval(async () => {
-        try {
-          for await (const [name, entry] of handle.entries()) {
-            if (!name.endsWith(".slp") || entry.kind !== "file") continue;
-            if (seenFilesRef.current.has(name)) continue;
+    watchIntervalRef.current = setInterval(async () => {
+      try {
+        for await (const [name, entry] of handle.entries()) {
+          if (!name.endsWith(".slp") || entry.kind !== "file") continue;
+          if (seenFilesRef.current.has(name)) continue;
 
-            const file = await (entry as FileSystemFileHandle).getFile();
-            if (file.lastModified >= seriesStartRef.current) {
-              seenFilesRef.current.add(name);
-              await submitReplayFile(file);
-            }
+          const file = await (entry as FileSystemFileHandle).getFile();
+          if (file.lastModified >= seriesStartRef.current) {
+            seenFilesRef.current.add(name);
+            await submitReplayFile(file);
           }
-        } catch {
-          // Directory access may be temporarily unavailable
         }
-      }, 3000);
-    } catch {
-      // User cancelled picker — do nothing
-    }
+      } catch {
+        // Directory access may be temporarily unavailable
+      }
+    }, 3000);
   }
 
   function stopWatching() {
@@ -116,8 +120,6 @@ export default function SeriesPage() {
     dirHandleRef.current = null;
     setWatching(false);
   }
-
-  useEffect(() => () => { if (watchIntervalRef.current) clearInterval(watchIntervalRef.current); }, []);
 
   async function reportGame(winnerId: string) {
     setReportError("");
@@ -227,42 +229,34 @@ export default function SeriesPage() {
         <div className="bg-gray-800 rounded-xl p-6">
           {supportsFileSystemAccess ? (
             <>
-              <h2 className="text-white font-semibold mb-1">Auto-detect from Replays</h2>
-              <p className="text-gray-400 text-sm mb-4">
-                Point FoxTrot at your Slippi replays folder and results will be recorded automatically after each game — no uploads needed.
-              </p>
+              <h2 className="text-white font-semibold mb-1">Game Result</h2>
 
-              {!watching ? (
-                <button
-                  onClick={startWatching}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-semibold transition-colors"
-                >
-                  Watch Slippi Folder
-                </button>
-              ) : (
-                <div className="flex items-center gap-3">
+              {watching ? (
+                <div className="flex items-center gap-2 mb-4">
                   <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                  <span className="text-green-400 text-sm font-medium">Watching for new replays...</span>
-                  <button
-                    onClick={stopWatching}
-                    className="ml-auto text-gray-500 hover:text-gray-300 text-sm"
-                  >
-                    Stop
-                  </button>
+                  <span className="text-green-400 text-sm">Watching Slippi folder for new replays...</span>
                 </div>
+              ) : (
+                <p className="text-gray-400 text-sm mb-4">
+                  Connect your Slippi replays folder in{" "}
+                  <Link to="/settings" className="text-blue-400 hover:text-blue-300 underline">
+                    Settings
+                  </Link>{" "}
+                  to record results automatically.
+                </p>
               )}
 
               {uploadStatus === "verified" && (
-                <p className="text-green-400 text-sm mt-3">Game recorded from replay.</p>
+                <p className="text-green-400 text-sm mb-3">Game recorded from replay.</p>
               )}
               {uploadStatus === "error" && (
-                <p className="text-red-400 text-sm mt-3">{uploadError}</p>
+                <p className="text-red-400 text-sm mb-3">{uploadError}</p>
               )}
 
               {/* Manual upload as fallback */}
-              <details className="mt-5">
+              <details className="mt-1">
                 <summary className="text-gray-500 text-sm cursor-pointer hover:text-gray-300">
-                  Or upload a replay manually
+                  Upload a replay manually
                 </summary>
                 <div className="flex gap-3 items-center mt-3 flex-wrap">
                   <input
