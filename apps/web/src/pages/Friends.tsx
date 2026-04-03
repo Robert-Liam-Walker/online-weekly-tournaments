@@ -18,7 +18,6 @@ interface IncomingRequest {
 }
 
 export default function Friends() {
-  useAuthStore();
   const queryClient = useQueryClient();
   const [connectCode, setConnectCode] = useState("");
   const [sendError, setSendError] = useState("");
