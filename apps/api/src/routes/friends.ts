@@ -2,8 +2,21 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireSubscription, requireAuth } from "../plugins/auth";
+import { io } from "../index";
 
 export async function friendRoutes(app: FastifyInstance) {
+  // GET /api/friends/requests/incoming — pending requests addressed to me
+  app.get("/requests/incoming", { preHandler: [requireAuth] }, async (request) => {
+    const userId = (request.user as { id: string }).id;
+    return prisma.friendRequest.findMany({
+      where: { requesteeId: userId, status: "PENDING" },
+      include: {
+        requester: { select: { id: true, username: true, connectCode: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  });
+
   // GET /api/friends — list accepted friends
   app.get("/", { preHandler: [requireSubscription] }, async (request) => {
     const userId = (request.user as { id: string }).id;
@@ -61,8 +74,39 @@ export async function friendRoutes(app: FastifyInstance) {
 
       const req = await prisma.friendRequest.create({
         data: { requesterId: userId, requesteeId: target.id },
+        include: {
+          requester: { select: { id: true, username: true, connectCode: true } },
+        },
       });
+
+      io.to(`user:${target.id}`).emit("friend:request", req);
+
       return reply.code(201).send(req);
+    }
+  );
+
+  // PATCH /api/friends/request/:id/decline
+  app.patch(
+    "/request/:id/decline",
+    { preHandler: [requireAuth] },
+    async (request, reply) => {
+      const userId = (request.user as { id: string }).id;
+      const { id } = request.params as { id: string };
+
+      const req = await prisma.friendRequest.findUnique({ where: { id } });
+      if (!req || req.requesteeId !== userId) {
+        return reply.code(404).send({ error: "Friend request not found" });
+      }
+      if (req.status !== "PENDING") {
+        return reply.code(409).send({ error: "Request already resolved" });
+      }
+
+      await prisma.friendRequest.update({
+        where: { id },
+        data: { status: "DECLINED" },
+      });
+
+      return { success: true };
     }
   );
 
