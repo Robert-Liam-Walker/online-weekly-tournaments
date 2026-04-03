@@ -1,0 +1,194 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String             @id @default(cuid())
+  username           String             @unique
+  email              String             @unique
+  passwordHash       String
+  connectCode        String             @unique
+  stripeCustomerId   String?            @unique
+  subscriptionStatus SubscriptionStatus @default(FREE)
+  subscriptionEndsAt DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  arenaEntry         ArenaEntry?
+  challengesReceived Challenge[]        @relation("challenged")
+  challengesSent     Challenge[]        @relation("challenger")
+  receivedFriendReqs FriendRequest[]    @relation("requestee")
+  sentFriendReqs     FriendRequest[]    @relation("requester")
+  friendsInitiated   Friendship[]       @relation("initiator")
+  friendsReceived    Friendship[]       @relation("receiver")
+  seriesAsP1         Series[]           @relation("player1")
+  seriesAsP2         Series[]           @relation("player2")
+  tournamentEntries  TournamentEntry[]
+}
+
+model ArenaEntry {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  format    Format
+  note      String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Challenge {
+  id           String          @id @default(cuid())
+  challengerId String
+  challengedId String
+  format       Format
+  status       ChallengeStatus @default(PENDING)
+  seriesId     String?         @unique
+  createdAt    DateTime        @default(now())
+  resolvedAt   DateTime?
+  challenged   User            @relation("challenged", fields: [challengedId], references: [id])
+  challenger   User            @relation("challenger", fields: [challengerId], references: [id])
+  series       Series?         @relation(fields: [seriesId], references: [id])
+}
+
+model Series {
+  id                String           @id @default(cuid())
+  player1Id         String
+  player2Id         String
+  format            Format
+  p1Wins            Int              @default(0)
+  p2Wins            Int              @default(0)
+  status            SeriesStatus     @default(IN_PROGRESS)
+  winnerId          String?
+  replayS3Key       String?
+  tournamentMatchId String?          @unique
+  createdAt         DateTime         @default(now())
+  completedAt       DateTime?
+  challenge         Challenge?
+  games             Game[]
+  player1           User             @relation("player1", fields: [player1Id], references: [id])
+  player2           User             @relation("player2", fields: [player2Id], references: [id])
+  tournamentMatch   TournamentMatch? @relation(fields: [tournamentMatchId], references: [id])
+}
+
+model Game {
+  id          String   @id @default(cuid())
+  seriesId    String
+  gameNumber  Int
+  winnerId    String
+  p1Character Int?
+  p2Character Int?
+  stageId     Int?
+  duration    Int?
+  replayS3Key String?
+  createdAt   DateTime @default(now())
+  series      Series   @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+}
+
+model Friendship {
+  id          String   @id @default(cuid())
+  initiatorId String
+  receiverId  String
+  createdAt   DateTime @default(now())
+  initiator   User     @relation("initiator", fields: [initiatorId], references: [id])
+  receiver    User     @relation("receiver", fields: [receiverId], references: [id])
+
+  @@unique([initiatorId, receiverId])
+}
+
+model FriendRequest {
+  id          String              @id @default(cuid())
+  requesterId String
+  requesteeId String
+  status      FriendRequestStatus @default(PENDING)
+  createdAt   DateTime            @default(now())
+  requestee   User                @relation("requestee", fields: [requesteeId], references: [id])
+  requester   User                @relation("requester", fields: [requesterId], references: [id])
+
+  @@unique([requesterId, requesteeId])
+}
+
+model Tournament {
+  id           String            @id @default(cuid())
+  name         String
+  description  String?
+  scheduledAt  DateTime
+  format       BracketFormat     @default(SINGLE_ELIM)
+  seriesFormat Format            @default(BO5)
+  status       TournamentStatus  @default(UPCOMING)
+  maxEntrants  Int               @default(64)
+  createdAt    DateTime          @default(now())
+  entries      TournamentEntry[]
+  matches      TournamentMatch[]
+}
+
+model TournamentEntry {
+  id           String     @id @default(cuid())
+  tournamentId String
+  userId       String
+  seed         Int?
+  createdAt    DateTime   @default(now())
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+  user         User       @relation(fields: [userId], references: [id])
+
+  @@unique([tournamentId, userId])
+}
+
+model TournamentMatch {
+  id           String     @id @default(cuid())
+  tournamentId String
+  round        Int
+  matchNumber  Int
+  player1Id    String?
+  player2Id    String?
+  winnerId     String?
+  createdAt    DateTime   @default(now())
+  series       Series?
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+}
+
+enum Format {
+  BO3
+  BO5
+}
+
+enum SubscriptionStatus {
+  FREE
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum SeriesStatus {
+  IN_PROGRESS
+  COMPLETED
+  DISPUTED
+}
+
+enum ChallengeStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELED
+}
+
+enum BracketFormat {
+  SINGLE_ELIM
+  DOUBLE_ELIM
+}
+
+enum TournamentStatus {
+  UPCOMING
+  REGISTRATION
+  ACTIVE
+  COMPLETED
+  CANCELED
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
