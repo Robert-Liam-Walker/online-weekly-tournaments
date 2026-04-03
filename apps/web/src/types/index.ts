@@ -63,5 +63,7 @@ export interface Tournament {
   seriesFormat: Format;
   status: TournamentStatus;
   maxEntrants: number;
+  entryFee: number; // cents; 0 = free
+  prizePool: number; // cents accumulated
   _count?: { entries: number };
 }

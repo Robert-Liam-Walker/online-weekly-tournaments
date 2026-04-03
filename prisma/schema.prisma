@@ -119,6 +119,8 @@ model Tournament {
   seriesFormat Format            @default(BO5)
   status       TournamentStatus  @default(UPCOMING)
   maxEntrants  Int               @default(64)
+  entryFee     Int               @default(0)
+  prizePool    Int               @default(0)
   createdAt    DateTime          @default(now())
   entries      TournamentEntry[]
   matches      TournamentMatch[]

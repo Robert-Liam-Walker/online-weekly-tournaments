@@ -77,6 +77,7 @@ export default function App() {
                     <Route path="/arena" element={<Arena />} />
                     <Route path="/tournaments" element={<Tournaments />} />
                     <Route path="/friends" element={<Friends />} />
+                    <Route path="/tournaments/success" element={<Tournaments />} />
                     <Route path="/series/:id" element={<Series />} />
                     <Route path="/subscribe" element={<Subscribe />} />
                     <Route path="/subscribe/success" element={<Subscribe />} />

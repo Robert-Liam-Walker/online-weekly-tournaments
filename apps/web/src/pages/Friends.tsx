@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { useAuthStore } from "../hooks/useAuth";
 import { getSocket } from "../lib/socket";
 
 interface Friend {
@@ -19,7 +18,7 @@ interface IncomingRequest {
 }
 
 export default function Friends() {
-  const { isSubscribed } = useAuthStore();
+  useAuthStore();
   const queryClient = useQueryClient();
   const [connectCode, setConnectCode] = useState("");
   const [sendError, setSendError] = useState("");
@@ -28,13 +27,11 @@ export default function Friends() {
   const { data: friends = [], isLoading: loadingFriends } = useQuery<Friend[]>({
     queryKey: ["friends"],
     queryFn: () => api.get("/friends").then((r) => r.data),
-    enabled: isSubscribed(),
   });
 
   const { data: incoming = [] } = useQuery<IncomingRequest[]>({
     queryKey: ["friends", "incoming"],
     queryFn: () => api.get("/friends/requests/incoming").then((r) => r.data),
-    enabled: isSubscribed(),
   });
 
   // Real-time friend request notifications
@@ -79,20 +76,6 @@ export default function Friends() {
     mutationFn: (friendId: string) => api.delete(`/friends/${friendId}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["friends"] }),
   });
-
-  if (!isSubscribed()) {
-    return (
-      <div className="max-w-2xl mx-auto p-6">
-        <h1 className="text-3xl font-bold text-white mb-6">Friends</h1>
-        <div className="bg-yellow-900/40 border border-yellow-700 rounded-lg p-6 text-center">
-          <p className="text-yellow-300 mb-2">Friends list requires an active subscription.</p>
-          <a href="/subscribe" className="text-yellow-200 underline hover:text-white">
-            Subscribe for $5/month
-          </a>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-2xl mx-auto p-6">

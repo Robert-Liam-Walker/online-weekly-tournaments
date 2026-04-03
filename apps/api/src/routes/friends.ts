@@ -18,7 +18,7 @@ export async function friendRoutes(app: FastifyInstance) {
   });
 
   // GET /api/friends — list accepted friends
-  app.get("/", { preHandler: [requireSubscription] }, async (request) => {
+  app.get("/", { preHandler: [requireAuth] }, async (request) => {
     const userId = (request.user as { id: string }).id;
 
     const friendships = await prisma.friendship.findMany({
@@ -37,7 +37,7 @@ export async function friendRoutes(app: FastifyInstance) {
   // POST /api/friends/request — send friend request
   app.post(
     "/request",
-    { preHandler: [requireSubscription] },
+    { preHandler: [requireAuth] },
     async (request, reply) => {
       const userId = (request.user as { id: string }).id;
       const schema = z.object({

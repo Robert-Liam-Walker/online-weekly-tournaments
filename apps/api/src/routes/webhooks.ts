@@ -31,8 +31,21 @@ export async function stripeWebhookRoute(app: FastifyInstance) {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        const userId = session.metadata?.userId;
-        if (userId) {
+        const { type, userId, tournamentId } = session.metadata ?? {};
+
+        if (type === "tournament_entry" && userId && tournamentId) {
+          const amountPaid = session.amount_total ?? 0;
+          await prisma.$transaction([
+            prisma.tournamentEntry.create({
+              data: { tournamentId, userId },
+            }),
+            prisma.tournament.update({
+              where: { id: tournamentId },
+              data: { prizePool: { increment: amountPaid } },
+            }),
+          ]);
+        } else if (userId) {
+          // Legacy subscription checkout
           await prisma.user.update({
             where: { id: userId },
             data: { subscriptionStatus: "ACTIVE" },
