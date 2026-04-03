@@ -22,9 +22,8 @@ export default function SeriesPage() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [reportError, setReportError] = useState("");
   const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "verified" | "error">("idle");
-  const [submitting, setSubmitting] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   const { data: series, isLoading } = useQuery<SeriesDetail>({
     queryKey: ["series", id],
@@ -59,24 +58,11 @@ export default function SeriesPage() {
   const theirWins = user?.id === series.player1Id ? series.p2Wins : series.p1Wins;
   const winsNeeded = series.format === "BO5" ? 3 : 2;
 
-  async function reportGame(winnerId: string) {
-    setReportError("");
-    setSubmitting(true);
-    try {
-      await api.patch(`/series/${id}/score`, { winnerId });
-      queryClient.invalidateQueries({ queryKey: ["series", id] });
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? "Failed to report game";
-      setReportError(msg);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   async function uploadReplay() {
     const file = fileRef.current?.files?.[0];
     if (!file) return;
     setUploadStatus("uploading");
+    setUploadError("");
     try {
       const form = new FormData();
       form.append("file", file);
@@ -84,8 +70,14 @@ export default function SeriesPage() {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setUploadStatus("verified");
-    } catch {
+      queryClient.invalidateQueries({ queryKey: ["series", id] });
+      if (fileRef.current) fileRef.current.value = "";
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        "Verification failed";
       setUploadStatus("error");
+      setUploadError(msg);
     }
   }
 
@@ -148,35 +140,6 @@ export default function SeriesPage() {
         )}
       </div>
 
-      {/* Report game result */}
-      {!isCompleted && isParticipant && (
-        <div className="bg-gray-800 rounded-xl p-6 mb-6">
-          <h2 className="text-white font-semibold mb-4">Report Game Result</h2>
-          <p className="text-gray-400 text-sm mb-4">
-            After each game, report who won. Both players should agree — if disputed, flag the series.
-          </p>
-          <div className="flex gap-3">
-            <button
-              onClick={() => reportGame(user!.id)}
-              disabled={submitting}
-              className="flex-1 bg-green-700 hover:bg-green-600 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors"
-            >
-              I won this game
-            </button>
-            <button
-              onClick={() => reportGame(opponent!.id)}
-              disabled={submitting}
-              className="flex-1 bg-red-900 hover:bg-red-800 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors"
-            >
-              {opponent?.username} won
-            </button>
-          </div>
-          {reportError && (
-            <p className="text-red-400 text-sm mt-3 bg-red-900/30 rounded px-3 py-2">{reportError}</p>
-          )}
-        </div>
-      )}
-
       {/* Game history */}
       {series.games.length > 0 && (
         <div className="bg-gray-800 rounded-xl p-6 mb-6">
@@ -199,14 +162,15 @@ export default function SeriesPage() {
         </div>
       )}
 
-      {/* Replay upload */}
-      {isParticipant && (
+      {/* Replay upload — primary way to record game results */}
+      {!isCompleted && isParticipant && (
         <div className="bg-gray-800 rounded-xl p-6">
-          <h2 className="text-white font-semibold mb-2">Upload Replay for Verification</h2>
+          <h2 className="text-white font-semibold mb-1">Submit Game Result</h2>
           <p className="text-gray-400 text-sm mb-4">
-            Upload a <span className="font-mono">.slp</span> file to verify the match. Connect codes must match both players.
+            After each game, either player uploads the <span className="font-mono">.slp</span> replay file.
+            FoxTrot reads the result directly from the replay — no self-reporting needed.
           </p>
-          <div className="flex gap-3 items-center">
+          <div className="flex gap-3 items-center flex-wrap">
             <input
               ref={fileRef}
               type="file"
@@ -216,18 +180,16 @@ export default function SeriesPage() {
             <button
               onClick={uploadReplay}
               disabled={uploadStatus === "uploading"}
-              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-semibold transition-colors"
             >
-              {uploadStatus === "uploading" ? "Uploading..." : "Verify"}
+              {uploadStatus === "uploading" ? "Reading replay..." : "Submit"}
             </button>
           </div>
           {uploadStatus === "verified" && (
-            <p className="text-green-400 text-sm mt-2">Replay verified successfully.</p>
+            <p className="text-green-400 text-sm mt-3">Game recorded from replay.</p>
           )}
           {uploadStatus === "error" && (
-            <p className="text-red-400 text-sm mt-2">
-              Verification failed — connect codes may not match.
-            </p>
+            <p className="text-red-400 text-sm mt-3">{uploadError}</p>
           )}
         </div>
       )}

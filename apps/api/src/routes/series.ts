@@ -139,9 +139,72 @@ export async function seriesRoutes(app: FastifyInstance) {
           .send({ error: "Replay connect codes do not match series participants" });
       }
 
-      // In production: upload buffer to S3, store key
-      // For now, just acknowledge
-      return { verified: true, parsed };
+      // Map winner port → connect code → player id
+      const winnerPort = parsed.winner;
+      const winnerCode = parsed.players
+        .find((p) => p.port === winnerPort)
+        ?.connectCode?.toUpperCase();
+
+      if (!winnerCode) {
+        return reply.code(422).send({ error: "Could not determine winner from replay" });
+      }
+
+      const winnerId =
+        winnerCode === p1?.connectCode?.toUpperCase()
+          ? series.player1Id
+          : winnerCode === p2?.connectCode?.toUpperCase()
+          ? series.player2Id
+          : null;
+
+      if (!winnerId) {
+        return reply.code(422).send({ error: "Winner connect code does not match either player" });
+      }
+
+      // Record game result (same logic as PATCH /:id/score)
+      if (series.status === "IN_PROGRESS") {
+        const isP1Winner = winnerId === series.player1Id;
+        const newP1Wins = series.p1Wins + (isP1Winner ? 1 : 0);
+        const newP2Wins = series.p2Wins + (isP1Winner ? 0 : 1);
+        const winsNeeded = series.format === "BO5" ? 3 : 2;
+        const isComplete = newP1Wins >= winsNeeded || newP2Wins >= winsNeeded;
+        const gameNumber = newP1Wins + newP2Wins;
+
+        const [, updatedSeries] = await prisma.$transaction([
+          prisma.game.create({
+            data: {
+              seriesId: series.id,
+              gameNumber,
+              winnerId,
+              p1Character: parsed.players.find((p) => p.connectCode?.toUpperCase() === p1?.connectCode?.toUpperCase())?.characterId ?? undefined,
+              p2Character: parsed.players.find((p) => p.connectCode?.toUpperCase() === p2?.connectCode?.toUpperCase())?.characterId ?? undefined,
+              stageId: parsed.stage ?? undefined,
+              duration: parsed.durationFrames ?? undefined,
+            },
+          }),
+          prisma.series.update({
+            where: { id: series.id },
+            data: {
+              p1Wins: newP1Wins,
+              p2Wins: newP2Wins,
+              status: isComplete ? "COMPLETED" : "IN_PROGRESS",
+              winnerId: isComplete ? winnerId : undefined,
+              completedAt: isComplete ? new Date() : undefined,
+            },
+            include: {
+              player1: { select: { id: true, username: true } },
+              player2: { select: { id: true, username: true } },
+            },
+          }),
+        ]);
+
+        io.to(`user:${series.player1Id}`)
+          .to(`user:${series.player2Id}`)
+          .emit("series:update", updatedSeries);
+
+        return { verified: true, series: updatedSeries };
+      }
+
+      return { verified: true };
     }
   );
 }
