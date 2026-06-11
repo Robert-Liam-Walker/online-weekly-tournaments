@@ -1,7 +1,9 @@
+import { createHash, randomBytes } from "crypto";
 import { FastifyInstance } from "fastify";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
+import { sendPasswordResetEmail } from "../lib/email";
 
 const registerSchema = z.object({
   username: z.string().min(3).max(30),
@@ -17,11 +19,103 @@ const loginSchema = z.object({
   password: z.string(),
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  newPassword: z.string().min(8),
+});
+
 // Brute-force protection: account creation and credential checks get a much
 // stricter per-IP budget than the global API limit.
 const strictRateLimit = {
   rateLimit: { max: 10, timeWindow: "1 minute" },
 };
+
+// ---------------------------------------------------------------------------
+// Password reset
+//
+// Only the sha256 hex of the emailed token is ever stored or compared; the
+// raw token exists in the reset URL alone. Pure helpers are exported for
+// unit tests, the service functions for the smoke script.
+// ---------------------------------------------------------------------------
+
+export const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 60 minutes
+
+export function hashResetToken(rawToken: string): string {
+  return createHash("sha256").update(rawToken).digest("hex");
+}
+
+export function generateResetToken(): { raw: string; tokenHash: string } {
+  const raw = randomBytes(32).toString("hex");
+  return { raw, tokenHash: hashResetToken(raw) };
+}
+
+/** A stored token row is usable iff it exists, is unused, and is unexpired. */
+export function isResetTokenRowUsable(
+  row: { expiresAt: Date; usedAt: Date | null } | null | undefined,
+  now: Date = new Date()
+): boolean {
+  if (!row) return false;
+  if (row.usedAt !== null) return false;
+  return row.expiresAt.getTime() > now.getTime();
+}
+
+/**
+ * Issue a reset token for the account behind `email` (silently a no-op when
+ * no account matches — callers must answer identically either way to avoid
+ * user enumeration). Any prior unused tokens for the user are invalidated.
+ */
+export async function requestPasswordReset(email: string): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) return;
+
+  const { raw, tokenHash } = generateResetToken();
+  const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+
+  await prisma.$transaction([
+    prisma.passwordResetToken.deleteMany({
+      where: { userId: user.id, usedAt: null },
+    }),
+    prisma.passwordResetToken.create({
+      data: { userId: user.id, tokenHash, expiresAt },
+    }),
+  ]);
+
+  const webUrl = process.env.WEB_URL ?? "http://localhost:5173";
+  await sendPasswordResetEmail(user.email, `${webUrl}/reset-password?token=${raw}`);
+}
+
+/**
+ * Consume a raw reset token and set the user's password. Returns false for
+ * any unknown/used/expired token (callers map that to one generic 400 so the
+ * response never reveals which check failed). Consumption is guarded by a
+ * conditional update inside the transaction, so a concurrent double-submit
+ * of the same token can only succeed once.
+ */
+export async function resetPasswordWithToken(
+  token: string,
+  newPassword: string
+): Promise<boolean> {
+  const row = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash: hashResetToken(token) },
+  });
+  if (!row || !isResetTokenRowUsable(row)) return false;
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+
+  return prisma.$transaction(async (tx) => {
+    const consumed = await tx.passwordResetToken.updateMany({
+      where: { id: row.id, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+    if (consumed.count === 0) return false; // lost the race — already used
+    await tx.user.update({ where: { id: row.userId }, data: { passwordHash } });
+    return true;
+  });
+}
 
 export async function authRoutes(app: FastifyInstance) {
   app.post("/register", { config: strictRateLimit }, async (request, reply) => {
@@ -82,6 +176,51 @@ export async function authRoutes(app: FastifyInstance) {
     };
   });
 
+  // Step 1 of password reset: email a single-use, 60-minute link. ALWAYS
+  // answers 200 {ok:true} — whether or not the account exists, and even if
+  // the email send fails — so the endpoint can't be used for user
+  // enumeration. Tight per-IP budget: this sends outbound email.
+  app.post(
+    "/forgot-password",
+    { config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } },
+    async (request, reply) => {
+      const body = forgotPasswordSchema.safeParse(request.body);
+      if (!body.success) {
+        return reply.code(400).send({ error: body.error.flatten() });
+      }
+
+      try {
+        await requestPasswordReset(body.data.email);
+      } catch (err) {
+        // Never let a delivery failure change the response (enumeration) —
+        // log and answer 200 anyway. The raw token is not part of `err`.
+        request.log.error({ err }, "password reset request failed");
+      }
+
+      return { ok: true };
+    }
+  );
+
+  // Step 2: trade the emailed token for a new password. One generic 400 for
+  // every failure mode (unknown, used, expired) — no oracle.
+  app.post(
+    "/reset-password",
+    { config: strictRateLimit },
+    async (request, reply) => {
+      const body = resetPasswordSchema.safeParse(request.body);
+      if (!body.success) {
+        return reply.code(400).send({ error: body.error.flatten() });
+      }
+
+      const ok = await resetPasswordWithToken(body.data.token, body.data.newPassword);
+      if (!ok) {
+        return reply.code(400).send({ error: "Invalid or expired reset link" });
+      }
+
+      return { ok: true };
+    }
+  );
+
   // Game-client login: the FoxTrot Dolphin build authenticates with the
   // connect code from the player's Slippi login (user.json).
   // DEPRECATED (2026-06-11): the Dolphin client now uses the device-link
@@ -123,6 +262,7 @@ export async function authRoutes(app: FastifyInstance) {
           username: true,
           email: true,
           connectCode: true,
+          role: true,
           subscriptionStatus: true,
           subscriptionEndsAt: true,
           createdAt: true,

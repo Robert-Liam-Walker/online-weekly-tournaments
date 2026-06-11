@@ -167,6 +167,20 @@ model DeviceLinkCode {
   createdAt   DateTime  @default(now())
 }
 
+// Password reset via email. Stores only the sha256 hex of the emailed token
+// (NEVER the raw token); rows are single-use (usedAt) and expire 60 minutes
+// after issue. Plain string FK (like DeviceLinkCode) to keep this additive.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
 // Replay evidence (.slp) attached to a tournament set. Parsed server-side;
 // the parsed winner is cross-checked against the reported result (roadmap
 // Phase 1 E). Plain string FKs (like DeviceLinkCode) to keep this additive.
