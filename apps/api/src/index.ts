@@ -25,7 +25,15 @@ import { stripeWebhookRoute } from "./routes/webhooks";
 import { registerSocketHandlers } from "./plugins/socket";
 import { startTournamentScheduler } from "./lib/scheduleTournaments";
 
-const app = Fastify({ logger: true });
+const app = Fastify({
+  logger: {
+    level: process.env.LOG_LEVEL ?? "info",
+    redact: {
+      paths: ["req.headers.authorization", "req.headers.cookie"],
+      censor: "[redacted]",
+    },
+  },
+});
 
 // Socket.io rides on Fastify's own HTTP server so HTTP + websockets share a
 // single port — required for single-port deployment behind EB/ALB.
@@ -72,10 +80,14 @@ async function main() {
 
   // Global rate limit; sensitive routes set stricter per-route limits via
   // route `config.rateLimit` (see routes/auth.ts and routes/device.ts).
+  // Backed by the shared Redis client so limits hold across EB instances;
+  // per-route configs use child stores of the same Redis store automatically
+  // (keys are prefixed "fastify-rate-limit-").
   await app.register(rateLimit, {
     global: true,
     max: 300,
     timeWindow: "1 minute",
+    redis,
   });
 
   await app.register(jwt, { secret: jwtSecret });
@@ -157,8 +169,15 @@ main().catch((err) => {
 });
 
 process.on("SIGTERM", async () => {
-  io.close();
-  await prisma.$disconnect();
-  redis.disconnect();
-  process.exit(0);
+  try {
+    // Stop accepting new connections and drain in-flight requests first.
+    await app.close();
+    // app.close() already shut the shared HTTP server; io.close() is safe on
+    // an already-closed server and disconnects any remaining sockets.
+    io.close();
+    await prisma.$disconnect();
+    redis.disconnect();
+  } finally {
+    process.exit(0);
+  }
 });
