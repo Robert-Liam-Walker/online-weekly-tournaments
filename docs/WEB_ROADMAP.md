@@ -58,14 +58,13 @@ uses the same routes as the browser, distinguished only by auth method.
   bracket mirror (winners columns, GF topping the row, losers below;
   green/red/dim) — same filtering as the in-game view.
 - **C done:** the detail page's bracket IS the live mirror.
-- **D — API + web DONE, Dolphin remaining.** `/device` page + the full
-  `/api/device/link/{start,confirm,status}` flow with a one-shot 30-day JWT
-  (DeviceLinkCode model); e2e `smoke-device-link.ts` passes. Swapping the
-  Dolphin client from connect-code `game-login` to device-link was attempted
-  by an agent but reverted — it left the emulator C++ unbuildable-to-verify
-  and still needs a game-side piece (show the 6-char code on screen). Do it
-  as one focused end-to-end pass (Dolphin EXI cmd + token persist + in-game
-  display + a real Dolphin build).
+- **D — DONE (API + web + Dolphin), awaiting in-game test.** `/device`
+  page + the full `/api/device/link/{start,confirm,status}` flow with a
+  one-shot 30-day JWT (DeviceLinkCode model); e2e `smoke-device-link.ts`
+  passes. The Dolphin client (FoxTrotMelee repo) now prefers a persisted
+  device-link token, falls back to `game-login`, and on a 404 surfaces a
+  6-char code in-game (EXI 0x2E) for the player to confirm at `/device`;
+  Dolphin built /WX-clean. Robert tests the in-game paths next.
 - **E done:** replay attachment for tournament sets —
   `POST /api/replays/:tournamentId/matches/:matchKey/replay` (multipart),
   parse + winner cross-check → PENDING/VERIFIED/MISMATCH/MANUAL_REVIEW
