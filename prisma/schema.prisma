@@ -143,6 +143,8 @@ model TournamentEntry {
   tournamentId String
   userId       String
   seed         Int?
+  checkedInAt  DateTime?
+  placement    Int?
   createdAt    DateTime   @default(now())
   tournament   Tournament @relation(fields: [tournamentId], references: [id])
   user         User       @relation(fields: [userId], references: [id])
@@ -153,6 +155,7 @@ model TournamentEntry {
 model TournamentMatch {
   id           String     @id @default(cuid())
   tournamentId String
+  matchKey     String     @default("") // bracket engine key: W1-2, L3-1, GF, GFR
   round        Int
   matchNumber  Int
   player1Id    String?
@@ -161,6 +164,8 @@ model TournamentMatch {
   createdAt    DateTime   @default(now())
   series       Series?
   tournament   Tournament @relation(fields: [tournamentId], references: [id])
+
+  @@unique([tournamentId, matchKey])
 }
 
 enum Format {

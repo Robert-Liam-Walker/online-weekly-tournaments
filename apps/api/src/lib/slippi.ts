@@ -23,14 +23,18 @@ export function parseReplayBuffer(buffer: Buffer): ParsedReplay {
     characterId: p.characterId,
   }));
 
-  // Determine winner from placements (lower placement = better)
-  const placements = stats?.overall ?? [];
+  // Determine winner: most stocks remaining at game end, kills as tiebreak.
+  // (OverallType has no stock info; surviving stocks are the entries in
+  // stats.stocks that never ended.)
+  const overall = stats?.overall ?? [];
+  const stocks = stats?.stocks ?? [];
+  const stocksRemaining = (playerIndex: number) =>
+    stocks.filter((s) => s.playerIndex === playerIndex && s.endFrame === null).length;
   const winner =
-    placements.length > 0
-      ? placements.sort((a, b) => {
-          const stockDiff =
-            (b.stocksRemaining ?? 0) - (a.stocksRemaining ?? 0);
-          return stockDiff !== 0 ? stockDiff : a.killCount - b.killCount;
+    overall.length > 0
+      ? [...overall].sort((a, b) => {
+          const stockDiff = stocksRemaining(b.playerIndex) - stocksRemaining(a.playerIndex);
+          return stockDiff !== 0 ? stockDiff : b.killCount - a.killCount;
         })[0]?.playerIndex ?? null
       : null;
 

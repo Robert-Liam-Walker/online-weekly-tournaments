@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import { prisma } from "./prisma";
+import { startTournament } from "./bracketService";
 
 /** Next Saturday at the given hour (local server time). If today is Saturday, schedules for next Saturday. */
 function nextSaturday(hour: number): Date {
@@ -63,6 +64,19 @@ export async function createWeeklyTournaments() {
   console.log(`[scheduler] Created weekly tournaments for ${label}.`);
 }
 
+/** Start (or cancel) any tournament whose scheduled time has arrived */
+export async function startDueTournaments() {
+  const due = await prisma.tournament.findMany({
+    where: { status: "REGISTRATION", scheduledAt: { lte: new Date() } },
+  });
+  for (const t of due) {
+    const result = await startTournament(t.id);
+    console.log(
+      `[scheduler] ${t.name}: ${result.started ? "started" : `not started (${result.reason})`}`
+    );
+  }
+}
+
 /** Runs every Monday at 9:00 AM to create that week's Saturday tournaments. */
 export function startTournamentScheduler() {
   // Create immediately on startup if none exist yet
@@ -73,5 +87,12 @@ export function startTournamentScheduler() {
     createWeeklyTournaments().catch(console.error);
   });
 
-  console.log("[scheduler] Tournament scheduler started (runs Mondays at 09:00).");
+  // Start due tournaments (close check-in, generate brackets) every minute
+  cron.schedule("* * * * *", () => {
+    startDueTournaments().catch(console.error);
+  });
+
+  console.log(
+    "[scheduler] Tournament scheduler started (creates Mondays 09:00, starts due tournaments every minute)."
+  );
 }
