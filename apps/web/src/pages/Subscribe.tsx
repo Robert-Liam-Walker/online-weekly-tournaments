@@ -4,7 +4,7 @@ import { api } from "../lib/api";
 import { useAuthStore } from "../hooks/useAuth";
 
 export default function Subscribe() {
-  const { user, isSubscribed } = useAuthStore();
+  const { isSubscribed } = useAuthStore();
   const [searchParams] = useSearchParams();
   const success = searchParams.get("session_id") !== null;
   const [loading, setLoading] = useState(false);

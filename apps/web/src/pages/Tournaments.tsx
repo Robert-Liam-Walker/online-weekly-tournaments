@@ -44,7 +44,7 @@ function TournamentCard({ t, onRegister, registering }: {
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <h2 className="text-white font-bold text-lg">{t.name}</h2>
+            <Link to={`/tournaments/${t.id}`} className="text-white font-bold text-lg hover:text-yellow-300">{t.name}</Link>
             {isPaid ? (
               <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-900 text-yellow-300 font-medium">
                 {dollars(t.entryFee)} Entry

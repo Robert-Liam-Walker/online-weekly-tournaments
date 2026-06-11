@@ -66,4 +66,31 @@ export interface Tournament {
   entryFee: number; // cents; 0 = free
   prizePool: number; // cents accumulated
   _count?: { entries: number };
+  viewerRegistered?: boolean;
+  viewerCheckedIn?: boolean;
+  viewerPlacement?: number | null;
+}
+
+export interface TournamentEntryDetail {
+  id: string;
+  userId: string;
+  seed: number | null;
+  checkedInAt: string | null;
+  placement: number | null;
+  user: { id: string; username: string; connectCode: string };
+}
+
+export interface TournamentMatchDetail {
+  id: string;
+  matchKey: string;
+  round: number;
+  matchNumber: number;
+  player1Id: string | null;
+  player2Id: string | null;
+  winnerId: string | null;
+}
+
+export interface TournamentDetail extends Tournament {
+  entries: TournamentEntryDetail[];
+  matches: TournamentMatchDetail[];
 }

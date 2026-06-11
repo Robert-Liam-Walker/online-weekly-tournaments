@@ -8,7 +8,7 @@ import RankBadge from "../components/RankBadge";
 export default function Arena() {
   const { entries, isLoading, joinArena, leaveArena } = useArena();
   const { user, isSubscribed } = useAuthStore();
-  const [inArena, setInArena] = useState(false);
+  const [, setInArena] = useState(false);
   const [format, setFormat] = useState<Format>("BO3");
   const [note, setNote] = useState("");
 
