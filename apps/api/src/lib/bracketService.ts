@@ -160,11 +160,20 @@ export async function reportTournamentResult(
 /** Matches ready to be played (both players known, no winner yet) */
 export async function getReadyTournamentMatches(tournamentId: string) {
   const bracket = await rebuildEngine(tournamentId);
-  return getReadyMatches(bracket).map((m) => ({
+  const ready = getReadyMatches(bracket);
+
+  const playerIds = [...new Set(ready.flatMap((m) => [m.p1!, m.p2!]))];
+  const users = await prisma.user.findMany({
+    where: { id: { in: playerIds } },
+    select: { id: true, username: true, connectCode: true },
+  });
+  const byId = new Map(users.map((u) => [u.id, u]));
+
+  return ready.map((m) => ({
     matchKey: m.def.key,
     round: m.def.round,
     matchNumber: m.def.matchNumber,
-    player1Id: m.p1!,
-    player2Id: m.p2!,
+    player1: byId.get(m.p1!) ?? { id: m.p1!, username: "unknown", connectCode: "" },
+    player2: byId.get(m.p2!) ?? { id: m.p2!, username: "unknown", connectCode: "" },
   }));
 }

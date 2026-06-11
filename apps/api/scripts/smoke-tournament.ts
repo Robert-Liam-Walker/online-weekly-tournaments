@@ -68,7 +68,8 @@ async function main() {
     const ready = await getReadyTournamentMatches(tournament.id);
     if (ready.length === 0) throw new Error("deadlock: ACTIVE but no ready matches");
     for (const m of ready) {
-      const winner = seedOf.get(m.player1Id)! < seedOf.get(m.player2Id)! ? m.player1Id : m.player2Id;
+      const winner =
+        seedOf.get(m.player1.id)! < seedOf.get(m.player2.id)! ? m.player1.id : m.player2.id;
       await reportTournamentResult(tournament.id, m.matchKey, winner);
     }
   }
