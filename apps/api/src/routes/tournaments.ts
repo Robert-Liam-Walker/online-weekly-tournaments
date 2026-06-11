@@ -9,6 +9,7 @@ import {
   reportTournamentResult,
   startTournament,
 } from "../lib/bracketService";
+import { emitTournamentUpdate } from "../lib/tournamentEvents";
 
 // Prize distribution (must sum to 100)
 export const PRIZE_SPLIT = { first: 50, second: 25, third: 10, platform: 15 };
@@ -101,6 +102,7 @@ export async function tournamentRoutes(app: FastifyInstance) {
         data: { tournamentId: id, userId },
         include: { user: { select: { id: true, username: true, connectCode: true } } },
       });
+      emitTournamentUpdate(id, "entry");
       return reply.code(201).send({ entry });
     }
 
@@ -185,6 +187,7 @@ export async function tournamentRoutes(app: FastifyInstance) {
       where: { id: entry.id },
       data: { checkedInAt: new Date() },
     });
+    emitTournamentUpdate(id, "checkin");
     return { entry: updated };
   });
 
@@ -199,6 +202,7 @@ export async function tournamentRoutes(app: FastifyInstance) {
     }
     const result = await startTournament(id);
     if (!result.started) return reply.code(409).send({ error: result.reason });
+    emitTournamentUpdate(id, "started");
     return { started: true };
   });
 
@@ -233,6 +237,7 @@ export async function tournamentRoutes(app: FastifyInstance) {
 
       try {
         const result = await reportTournamentResult(id, matchKey, body.data.winnerId);
+        emitTournamentUpdate(id, result.complete ? "completed" : "result");
         return result;
       } catch (err) {
         return reply.code(409).send({ error: (err as Error).message });

@@ -2,7 +2,16 @@ import { Server, Socket } from "socket.io";
 import { prisma } from "../lib/prisma";
 import { addToArena, removeFromArena } from "../lib/redis";
 
+// Held here so libs/routes can emit without importing src/index.ts (cycle).
+let ioInstance: Server | null = null;
+
+/** The live Socket.io server, or null before registerSocketHandlers runs. */
+export function getIO(): Server | null {
+  return ioInstance;
+}
+
 export function registerSocketHandlers(io: Server) {
+  ioInstance = io;
   io.use(async (socket, next) => {
     // Validate JWT from handshake auth
     const token = socket.handshake.auth?.token as string | undefined;
