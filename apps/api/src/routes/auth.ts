@@ -76,6 +76,33 @@ export async function authRoutes(app: FastifyInstance) {
     };
   });
 
+  // Game-client login: the FoxTrot Dolphin build authenticates with the
+  // connect code from the player's Slippi login (user.json).
+  // v1 TRUST MODEL: possession of the connect code is taken as identity —
+  // good enough for development. TODO before public launch: replace with a
+  // web-issued device link code (see TOURNAMENT_INTEGRATION.md in
+  // FoxTrotMelee) so the game session is bound to a real web login.
+  app.post("/game-login", async (request, reply) => {
+    const schema = z.object({ connectCode: z.string().min(3).max(10) });
+    const body = schema.safeParse(request.body);
+    if (!body.success) return reply.code(400).send({ error: body.error.flatten() });
+
+    const user = await prisma.user.findUnique({
+      where: { connectCode: body.data.connectCode.toUpperCase() },
+    });
+    if (!user) {
+      return reply
+        .code(404)
+        .send({ error: "No FoxTrot account with this connect code — sign up on the web first" });
+    }
+
+    const token = app.jwt.sign({ id: user.id }, { expiresIn: "7d" });
+    return {
+      user: { id: user.id, username: user.username, connectCode: user.connectCode },
+      token,
+    };
+  });
+
   app.get(
     "/me",
     { preHandler: [(req, rep) => req.jwtVerify()] },

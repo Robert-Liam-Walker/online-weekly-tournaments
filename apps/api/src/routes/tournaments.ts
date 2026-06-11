@@ -14,12 +14,35 @@ import {
 export const PRIZE_SPLIT = { first: 50, second: 25, third: 10, platform: 15 };
 
 export async function tournamentRoutes(app: FastifyInstance) {
-  // GET /api/tournaments — list all
-  app.get("/", { preHandler: [requireAuth] }, async () => {
-    return prisma.tournament.findMany({
+  // GET /api/tournaments — list all. Public; if a JWT is supplied the
+  // response includes the viewer's registration/check-in state per event
+  // (the game client relies on this).
+  app.get("/", async (request) => {
+    let viewerId: string | null = null;
+    try {
+      await request.jwtVerify();
+      viewerId = (request.user as { id: string }).id;
+    } catch {
+      // anonymous — fine
+    }
+
+    const tournaments = await prisma.tournament.findMany({
       orderBy: { scheduledAt: "asc" },
       include: { _count: { select: { entries: true } } },
     });
+
+    if (!viewerId) {
+      return tournaments.map((t) => ({ ...t, viewerRegistered: false, viewerCheckedIn: false }));
+    }
+    const myEntries = await prisma.tournamentEntry.findMany({
+      where: { userId: viewerId, tournamentId: { in: tournaments.map((t) => t.id) } },
+    });
+    const byTournament = new Map(myEntries.map((e) => [e.tournamentId, e]));
+    return tournaments.map((t) => ({
+      ...t,
+      viewerRegistered: byTournament.has(t.id),
+      viewerCheckedIn: byTournament.get(t.id)?.checkedInAt != null,
+    }));
   });
 
   // GET /api/tournaments/:id — full bracket detail
