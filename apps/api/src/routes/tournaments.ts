@@ -11,6 +11,7 @@ import {
   startTournament,
 } from "../lib/bracketService";
 import { emitTournamentUpdate } from "../lib/tournamentEvents";
+import { markPresent } from "../lib/presence";
 
 // Prize distribution (must sum to 100)
 export const PRIZE_SPLIT = { first: 50, second: 25, third: 10, platform: 15 };
@@ -222,11 +223,17 @@ export async function tournamentRoutes(app: FastifyInstance) {
     return { started: true };
   });
 
-  // GET /api/tournaments/:id/ready — matches with both players decided
+  // GET /api/tournaments/:id/ready — matches with both players decided.
+  // The game client polls this every ~5s while the player sits in the lobby,
+  // so each authenticated poll doubles as a liveness heartbeat for the
+  // no-show sweep. Fire-and-forget: presence must never add latency to or
+  // fail the poll itself.
   app.get("/:id/ready", { preHandler: [requireAuth] }, async (request, reply) => {
+    const userId = (request.user as { id: string }).id;
     const { id } = request.params as { id: string };
     const tournament = await prisma.tournament.findUnique({ where: { id } });
     if (!tournament) return reply.code(404).send({ error: "Tournament not found" });
+    markPresent(id, userId).catch(() => {});
     if (tournament.status !== "ACTIVE") return { matches: [] };
     return { matches: await getReadyTournamentMatches(id) };
   });

@@ -7,6 +7,7 @@ import {
   reportResult,
 } from "@foxtrot/shared";
 import { prisma } from "./prisma";
+import { isPresent } from "./presence";
 import { withTournamentLock } from "./tournamentLock";
 
 // Bridges the pure bracket engine and the database. The engine state is
@@ -258,16 +259,138 @@ export async function dqTournamentEntry(
   tournamentId: string,
   userId: string
 ): Promise<{ complete: boolean; forfeits: number }> {
+  return withTournamentLock(tournamentId, () =>
+    dqTournamentEntryUnlocked(tournamentId, userId)
+  );
+}
+
+/**
+ * DQ internals without the mutex — composed by callers that already hold it
+ * (dqTournamentEntry, sweepNoShows). The lock is not reentrant, so acquiring
+ * it twice on the same tournament would deadlock until the acquire timeout.
+ */
+async function dqTournamentEntryUnlocked(
+  tournamentId: string,
+  userId: string
+): Promise<{ complete: boolean; forfeits: number }> {
+  await prisma.tournamentEntry.update({
+    where: { tournamentId_userId: { tournamentId, userId } },
+    data: { dqAt: new Date() },
+  });
+  const tournament = await prisma.tournament.findUniqueOrThrow({
+    where: { id: tournamentId },
+  });
+  if (tournament.status !== "ACTIVE") return { complete: false, forfeits: 0 };
+  return sweepDqForfeits(tournamentId);
+}
+
+/** Subset of a TournamentMatch row that the no-show decision depends on */
+export interface NoShowMatchState {
+  player1Id: string | null;
+  player2Id: string | null;
+  winnerId: string | null;
+  readyAt: Date | null;
+}
+
+/**
+ * Decide which players of a single match must be DQ'd for a no-show.
+ * Pure — unit tested. Decision matrix:
+ *   - match not genuinely ready (missing player / decided / no readyAt) → none
+ *   - ready for less than timeoutMinutes → none (not overdue yet)
+ *   - both present → none (they're trying — leave the match to the TO)
+ *   - exactly one present → DQ the absent player
+ *   - neither present → DQ both (the forfeit cascade resolves the bracket)
+ * Already-DQ'd entries are never DQ'd again.
+ */
+export function decideNoShowDqs(
+  match: NoShowMatchState,
+  presence: { player1: boolean; player2: boolean },
+  alreadyDqd: ReadonlySet<string>,
+  timeoutMinutes: number,
+  now: Date
+): string[] {
+  if (!match.player1Id || !match.player2Id || match.winnerId != null) return [];
+  if (match.readyAt == null) return [];
+  if (now.getTime() - match.readyAt.getTime() < timeoutMinutes * 60_000) return [];
+  const absent: string[] = [];
+  if (!presence.player1) absent.push(match.player1Id);
+  if (!presence.player2) absent.push(match.player2Id);
+  return absent.filter((id) => !alreadyDqd.has(id));
+}
+
+export interface NoShowSweepResult {
+  /** userIds disqualified by this sweep */
+  dqd: string[];
+  /** matches forfeited by the resulting DQ cascades */
+  forfeits: number;
+  /** tournament reached COMPLETED during this sweep */
+  complete: boolean;
+}
+
+/**
+ * Auto-DQ no-shows: for every ready match (both players, no winner) whose
+ * readyAt is older than timeoutMinutes, check lobby presence (lib/presence —
+ * refreshed by the game client's GET /:id/ready polling) and DQ the absent
+ * player(s) per decideNoShowDqs. Runs under the per-tournament mutex and
+ * composes the unlocked DQ internals, so each DQ's forfeit cascade can
+ * advance — or complete — the bracket. No-op unless the tournament is ACTIVE
+ * or when timeoutMinutes <= 0 (disabled).
+ *
+ * Decisions are made against a snapshot taken at sweep start: a match that
+ * becomes ready mid-sweep gets a fresh readyAt stamp and therefore a fresh
+ * timeout window. DQs keep applying after completion (dqAt still stamps) so
+ * every decided no-show is recorded even when an earlier cascade finishes
+ * the tournament.
+ */
+export async function sweepNoShows(
+  tournamentId: string,
+  timeoutMinutes: number
+): Promise<NoShowSweepResult> {
+  const result: NoShowSweepResult = { dqd: [], forfeits: 0, complete: false };
+  if (timeoutMinutes <= 0) return result;
+
   return withTournamentLock(tournamentId, async () => {
-    await prisma.tournamentEntry.update({
-      where: { tournamentId_userId: { tournamentId, userId } },
-      data: { dqAt: new Date() },
+    const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+    if (!tournament || tournament.status !== "ACTIVE") return result;
+
+    // Ready matches as persisted by persistEngine: both players known, no
+    // winner. readyAt is stamped the moment a match becomes playable.
+    const matches = await prisma.tournamentMatch.findMany({
+      where: {
+        tournamentId,
+        winnerId: null,
+        player1Id: { not: null },
+        player2Id: { not: null },
+      },
+      orderBy: [{ round: "asc" }, { matchNumber: "asc" }],
     });
-    const tournament = await prisma.tournament.findUniqueOrThrow({
-      where: { id: tournamentId },
+    if (matches.length === 0) return result;
+
+    const dqdEntries = await prisma.tournamentEntry.findMany({
+      where: { tournamentId, dqAt: { not: null } },
+      select: { userId: true },
     });
-    if (tournament.status !== "ACTIVE") return { complete: false, forfeits: 0 };
-    return sweepDqForfeits(tournamentId);
+    const alreadyDqd = new Set(dqdEntries.map((e) => e.userId));
+
+    const now = new Date();
+    const toDq = new Set<string>();
+    for (const m of matches) {
+      const [player1, player2] = await Promise.all([
+        isPresent(tournamentId, m.player1Id!),
+        isPresent(tournamentId, m.player2Id!),
+      ]);
+      for (const userId of decideNoShowDqs(m, { player1, player2 }, alreadyDqd, timeoutMinutes, now)) {
+        toDq.add(userId);
+      }
+    }
+
+    for (const userId of toDq) {
+      const dq = await dqTournamentEntryUnlocked(tournamentId, userId);
+      result.dqd.push(userId);
+      result.forfeits += dq.forfeits;
+      if (dq.complete) result.complete = true;
+    }
+    return result;
   });
 }
 

@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import { prisma } from "./prisma";
-import { startTournament } from "./bracketService";
+import { startTournament, sweepNoShows } from "./bracketService";
 import { emitTournamentUpdate } from "./tournamentEvents";
 
 /**
@@ -106,6 +106,42 @@ export async function startDueTournaments() {
   }
 }
 
+/**
+ * Minutes a ready match may sit before absent players are auto-DQ'd.
+ * READY_TIMEOUT_MINUTES env, default 10; "0" disables the no-show sweep.
+ * Read at call time so tests/ops can flip it without reload (same pattern
+ * as paidEventsEnabled).
+ */
+export function readyTimeoutMinutes(): number {
+  const raw = process.env.READY_TIMEOUT_MINUTES ?? "10";
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 10;
+}
+
+/** Auto-DQ no-shows in every ACTIVE tournament (no-op when disabled). */
+export async function sweepNoShowTournaments() {
+  const timeoutMinutes = readyTimeoutMinutes();
+  if (timeoutMinutes <= 0) return;
+
+  const active = await prisma.tournament.findMany({ where: { status: "ACTIVE" } });
+  for (const t of active) {
+    try {
+      const result = await sweepNoShows(t.id, timeoutMinutes);
+      if (result.dqd.length > 0) {
+        emitTournamentUpdate(t.id, result.complete ? "completed" : "result");
+        console.log(
+          `[scheduler] ${t.name}: no-show sweep DQ'd ${result.dqd.length} player(s), ` +
+            `${result.forfeits} forfeit(s)${result.complete ? ", tournament completed" : ""}`
+        );
+      }
+    } catch (err) {
+      // Per-tournament isolation: a busy lock (players actively reporting)
+      // must not block sweeps of the remaining tournaments.
+      console.error(`[scheduler] ${t.name}: no-show sweep failed`, err);
+    }
+  }
+}
+
 /** Runs every Monday at 9:00 AM to create that week's Saturday tournaments. */
 export function startTournamentScheduler() {
   // Create immediately on startup if none exist yet
@@ -116,9 +152,11 @@ export function startTournamentScheduler() {
     createWeeklyTournaments().catch(console.error);
   });
 
-  // Start due tournaments (close check-in, generate brackets) every minute
-  cron.schedule("* * * * *", () => {
-    startDueTournaments().catch(console.error);
+  // Start due tournaments (close check-in, generate brackets) every minute,
+  // then auto-DQ no-shows across ACTIVE tournaments.
+  cron.schedule("* * * * *", async () => {
+    await startDueTournaments().catch(console.error);
+    await sweepNoShowTournaments().catch(console.error);
   });
 
   console.log(
