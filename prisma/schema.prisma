@@ -152,6 +152,19 @@ model TournamentEntry {
   @@unique([tournamentId, userId])
 }
 
+// Device link: the game client requests a short code, the player confirms
+// it on the website while logged in, and the client exchanges it for a JWT.
+// Replaces the connect-code dev trust model.
+model DeviceLinkCode {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  userId      String?
+  confirmedAt DateTime?
+  consumedAt  DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+}
+
 model TournamentMatch {
   id           String     @id @default(cuid())
   tournamentId String

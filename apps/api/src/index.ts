@@ -14,6 +14,7 @@ import { challengeRoutes } from "./routes/challenges";
 import { seriesRoutes } from "./routes/series";
 import { friendRoutes } from "./routes/friends";
 import { tournamentRoutes } from "./routes/tournaments";
+import { deviceRoutes } from "./routes/device";
 import { subscriptionRoutes } from "./routes/subscriptions";
 import { chatRoutes } from "./routes/chat";
 import { rankRoutes } from "./routes/rank";
@@ -54,6 +55,7 @@ async function main() {
   await app.register(seriesRoutes, { prefix: "/api/series" });
   await app.register(friendRoutes, { prefix: "/api/friends" });
   await app.register(tournamentRoutes, { prefix: "/api/tournaments" });
+  await app.register(deviceRoutes, { prefix: "/api/device" });
   await app.register(chatRoutes, { prefix: "/api/chat" });
   await app.register(rankRoutes, { prefix: "/api/rank" });
 

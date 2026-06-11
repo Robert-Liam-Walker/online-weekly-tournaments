@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, NavLink, useNavigate } from "react-router
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Arena from "./pages/Arena";
 import Tournaments from "./pages/Tournaments";
+import TournamentDetail from "./pages/TournamentDetail";
+import Device from "./pages/Device";
 import Login from "./pages/Login";
 import Friends from "./pages/Friends";
 import Feed from "./pages/Feed";
@@ -84,6 +86,8 @@ export default function App() {
                     <Route path="/" element={<Arena />} />
                     <Route path="/arena" element={<Arena />} />
                     <Route path="/tournaments" element={<Tournaments />} />
+                    <Route path="/tournaments/:id" element={<TournamentDetail />} />
+                    <Route path="/device" element={<Device />} />
                     <Route path="/friends" element={<Friends />} />
                     <Route path="/feed" element={<Feed />} />
                     <Route path="/tournaments/success" element={<Tournaments />} />
