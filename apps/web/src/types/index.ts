@@ -1,4 +1,6 @@
 export type SubscriptionStatus = "FREE" | "ACTIVE" | "PAST_DUE" | "CANCELED";
+export type UserRole = "USER" | "ADMIN";
+export type ReplayVerification = "PENDING" | "VERIFIED" | "MISMATCH" | "MANUAL_REVIEW";
 export type Format = "BO3" | "BO5";
 export type SeriesStatus = "IN_PROGRESS" | "COMPLETED" | "DISPUTED";
 export type ChallengeStatus = "PENDING" | "ACCEPTED" | "DECLINED" | "CANCELED";
@@ -16,6 +18,8 @@ export interface User {
   connectCode: string;
   subscriptionStatus: SubscriptionStatus;
   subscriptionEndsAt?: string;
+  // Added by /auth/me; may be absent from older payloads — treat missing as USER.
+  role?: UserRole;
 }
 
 export interface ArenaEntry {
@@ -76,6 +80,7 @@ export interface TournamentEntryDetail {
   userId: string;
   seed: number | null;
   checkedInAt: string | null;
+  dqAt?: string | null;
   placement: number | null;
   user: { id: string; username: string; connectCode: string };
 }
@@ -88,9 +93,25 @@ export interface TournamentMatchDetail {
   player1Id: string | null;
   player2Id: string | null;
   winnerId: string | null;
+  readyAt?: string | null;
 }
 
 export interface TournamentDetail extends Tournament {
   entries: TournamentEntryDetail[];
   matches: TournamentMatchDetail[];
+}
+
+export interface TournamentReplay {
+  id: string;
+  tournamentId: string;
+  matchKey: string;
+  uploaderId: string;
+  fileName: string;
+  stage: number | null;
+  durationFrames: number | null;
+  parsedWinnerCode: string | null;
+  verification: ReplayVerification;
+  resolvedAt: string | null;
+  resolvedById: string | null;
+  createdAt: string;
 }

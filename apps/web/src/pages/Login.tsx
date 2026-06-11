@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuthStore } from "../hooks/useAuth";
 
@@ -99,6 +99,16 @@ export default function Login() {
                 className="w-full bg-gray-800 text-white rounded-lg px-4 py-2.5 border border-gray-700 focus:border-blue-500 focus:outline-none"
                 placeholder="••••••••"
               />
+              {tab === "login" && (
+                <div className="text-right mt-1.5">
+                  <Link
+                    to="/forgot-password"
+                    className="text-xs text-gray-400 hover:text-white"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+              )}
             </div>
 
             {tab === "register" && (

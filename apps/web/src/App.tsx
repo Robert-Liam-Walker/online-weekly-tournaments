@@ -10,6 +10,9 @@ import Feed from "./pages/Feed";
 import Series from "./pages/Series";
 import Subscribe from "./pages/Subscribe";
 import Settings from "./pages/Settings";
+import Admin from "./pages/Admin";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import RequireAuth from "./components/RequireAuth";
 import ChallengeNotification from "./components/ChallengeNotification";
 import FoxIcon from "./components/FoxIcon";
@@ -39,6 +42,9 @@ function Nav() {
       <NavLink to="/tournaments" className={linkClass}>Tournaments</NavLink>
       <NavLink to="/friends" className={linkClass}>Friends</NavLink>
       <NavLink to="/feed" className={linkClass}>Feed</NavLink>
+      {user?.role === "ADMIN" && (
+        <NavLink to="/admin" className={linkClass}>Admin</NavLink>
+      )}
       <div className="ml-auto flex items-center gap-3">
         {user && (
           <span className="flex items-center gap-2">
@@ -77,6 +83,8 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route
             path="/*"
             element={
@@ -95,6 +103,7 @@ export default function App() {
                     <Route path="/subscribe" element={<Subscribe />} />
                     <Route path="/subscribe/success" element={<Subscribe />} />
                     <Route path="/settings" element={<Settings />} />
+                    <Route path="/admin" element={<Admin />} />
                   </Routes>
                 </Layout>
               </RequireAuth>

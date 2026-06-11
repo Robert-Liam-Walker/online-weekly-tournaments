@@ -1,10 +1,15 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { useAuthStore } from "../hooks/useAuth";
-import { TournamentDetail as TournamentDetailType } from "../types";
+import {
+  ReplayVerification,
+  TournamentDetail as TournamentDetailType,
+  TournamentMatchDetail,
+  TournamentReplay,
+} from "../types";
 
 // Mirrors the in-game bracket view: winners rounds as columns with grand
 // finals topping the row, losers bracket below; winner green, loser red,
@@ -12,6 +17,14 @@ import { TournamentDetail as TournamentDetailType } from "../types";
 // via the "tournament:update" socket event (slow polling kept as fallback).
 
 const CHECKIN_OPENS_MINUTES_BEFORE = 30;
+// A ready match with no result after this long is considered stuck and gets
+// an admin override control.
+const STUCK_MATCH_AFTER_MS = 10 * 60_000;
+
+function apiError(err: unknown, fallback: string) {
+  const msg = (err as { response?: { data?: { error?: unknown } } })?.response?.data?.error;
+  return typeof msg === "string" ? msg : fallback;
+}
 
 function statusBadge(status: string) {
   const styles: Record<string, string> = {
@@ -100,6 +113,153 @@ function BracketColumns({ sets, side }: { sets: BracketSet[]; side: "W" | "L" })
   );
 }
 
+// ---------- Admin controls (rendered only for role === "ADMIN") ----------
+
+/** Resolve a stuck set: both players known, ready for 10+ min, no result. */
+function OverrideControl({
+  tournamentId,
+  match,
+  names,
+}: {
+  tournamentId: string;
+  match: TournamentMatchDetail;
+  names: Map<string, string>;
+}) {
+  const queryClient = useQueryClient();
+  const [winnerId, setWinnerId] = useState("");
+
+  const override = useMutation({
+    mutationFn: async () =>
+      (
+        await api.post(`/tournaments/${tournamentId}/matches/${match.matchKey}/override`, {
+          winnerId,
+        })
+      ).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tournament", tournamentId] }),
+    onError: (err: unknown) => alert(apiError(err, "Override failed")),
+  });
+
+  const p1 = match.player1Id!;
+  const p2 = match.player2Id!;
+
+  return (
+    <li className="flex items-center gap-3 flex-wrap bg-gray-900/60 rounded-lg px-3 py-2">
+      <span className="text-gray-400 text-xs font-mono w-12 shrink-0">{match.matchKey}</span>
+      <span className="text-gray-200 text-sm">
+        {names.get(p1) ?? "?"} <span className="text-gray-500">vs</span> {names.get(p2) ?? "?"}
+      </span>
+      <div className="ml-auto flex items-center gap-2">
+        <select
+          value={winnerId}
+          onChange={(e) => setWinnerId(e.target.value)}
+          className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-yellow-600"
+        >
+          <option value="">Winner…</option>
+          <option value={p1}>{names.get(p1) ?? p1}</option>
+          <option value={p2}>{names.get(p2) ?? p2}</option>
+        </select>
+        <button
+          onClick={() => override.mutate()}
+          disabled={!winnerId || override.isPending}
+          className="bg-red-800 hover:bg-red-700 text-white text-xs font-semibold px-3 py-1.5 rounded disabled:opacity-50"
+        >
+          {override.isPending ? "Applying…" : "Apply"}
+        </button>
+      </div>
+    </li>
+  );
+}
+
+const verificationBadge: Record<ReplayVerification, string> = {
+  PENDING: "bg-yellow-900 text-yellow-300",
+  VERIFIED: "bg-green-900 text-green-300",
+  MISMATCH: "bg-red-900 text-red-300",
+  MANUAL_REVIEW: "bg-orange-900 text-orange-300",
+};
+
+const RESOLUTIONS: ReplayVerification[] = ["VERIFIED", "MISMATCH", "MANUAL_REVIEW"];
+
+const resolveButtonStyle: Record<string, string> = {
+  VERIFIED: "border-green-800 text-green-400 hover:bg-green-900/40",
+  MISMATCH: "border-red-800 text-red-400 hover:bg-red-900/40",
+  MANUAL_REVIEW: "border-orange-800 text-orange-400 hover:bg-orange-900/40",
+};
+
+/** Replays whose parsed result didn't auto-verify (PENDING/MISMATCH/…). */
+function ReplayReviewsPanel({ tournamentId }: { tournamentId: string }) {
+  const queryClient = useQueryClient();
+
+  const { data, isLoading } = useQuery<{ replays: TournamentReplay[] }>({
+    queryKey: ["replay-reviews", tournamentId],
+    queryFn: async () => (await api.get(`/replays/reviews/${tournamentId}`)).data,
+  });
+
+  const resolve = useMutation({
+    mutationFn: async (vars: { replayId: string; verification: ReplayVerification }) =>
+      (
+        await api.patch(`/replays/${vars.replayId}/resolve`, {
+          verification: vars.verification,
+        })
+      ).data,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["replay-reviews", tournamentId] }),
+    onError: (err: unknown) => alert(apiError(err, "Resolve failed")),
+  });
+
+  const replays = data?.replays ?? [];
+
+  return (
+    <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+      <h3 className="text-white font-semibold mb-1">Replay reviews</h3>
+      <p className="text-gray-500 text-xs mb-3">
+        Uploaded replays whose parsed result did not auto-verify. Resolving as VERIFIED clears
+        the replay from this queue.
+      </p>
+      {isLoading ? (
+        <p className="text-gray-500 text-sm">Loading…</p>
+      ) : replays.length === 0 ? (
+        <p className="text-gray-500 text-sm">Nothing to review.</p>
+      ) : (
+        <ul className="space-y-2">
+          {replays.map((r) => (
+            <li
+              key={r.id}
+              className="flex items-center gap-3 flex-wrap bg-gray-900/60 rounded-lg px-3 py-2"
+            >
+              <span className="text-gray-400 text-xs font-mono w-12 shrink-0">{r.matchKey}</span>
+              <div className="min-w-0">
+                <p className="text-gray-200 text-sm truncate" title={r.fileName}>
+                  {r.fileName}
+                </p>
+                <p className="text-gray-500 text-xs">
+                  Parsed winner: {r.parsedWinnerCode ?? "unknown"}
+                </p>
+              </div>
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${verificationBadge[r.verification]}`}
+              >
+                {r.verification.replace("_", " ")}
+              </span>
+              <div className="ml-auto flex items-center gap-1.5">
+                {RESOLUTIONS.map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => resolve.mutate({ replayId: r.id, verification: v })}
+                    disabled={resolve.isPending || r.verification === v}
+                    className={`border rounded px-2 py-1 text-[10px] font-semibold disabled:opacity-40 ${resolveButtonStyle[v]}`}
+                  >
+                    {v.replace("_", " ")}
+                  </button>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function TournamentDetail() {
   const { id } = useParams<{ id: string }>();
   const user = useAuthStore((s) => s.user);
@@ -137,16 +297,38 @@ export default function TournamentDetail() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tournament", id] }),
   });
 
+  // Admin: disqualify an entrant (server is authoritative — requireAdmin).
+  const dq = useMutation({
+    mutationFn: async (entrantUserId: string) =>
+      (await api.post(`/tournaments/${id}/entries/${entrantUserId}/dq`)).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tournament", id] }),
+    onError: (err: unknown) => alert(apiError(err, "DQ failed")),
+  });
+
   if (isLoading || !t) {
     return <p className="text-gray-400 p-6">Loading tournament…</p>;
   }
 
+  // Defensive: role may be missing from older /auth/me payloads → not admin.
+  const isAdmin = user?.role === "ADMIN";
   const myEntry = user ? t.entries.find((e) => e.userId === user.id) : undefined;
   const checkinOpensAt =
     new Date(t.scheduledAt).getTime() - CHECKIN_OPENS_MINUTES_BEFORE * 60_000;
   const checkinOpen = t.status === "REGISTRATION" && Date.now() >= checkinOpensAt;
   const sets = buildBracketSets(t);
   const gfSets = sets.filter((s) => s.key[0] === "G");
+  const entrantNames = new Map(t.entries.map((e) => [e.userId, e.user.username]));
+  const stuckMatches =
+    isAdmin && t.status === "ACTIVE"
+      ? t.matches.filter(
+          (m) =>
+            m.player1Id != null &&
+            m.player2Id != null &&
+            m.winnerId == null &&
+            m.readyAt != null &&
+            Date.now() - new Date(m.readyAt).getTime() > STUCK_MATCH_AFTER_MS
+        )
+      : [];
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
@@ -207,9 +389,20 @@ export default function TournamentDetail() {
               .map((e) => (
                 <li key={e.id} className="flex items-center gap-2 text-sm">
                   <span className="text-gray-500 w-5 text-right">{e.seed ?? "–"}</span>
-                  <span className={e.userId === user?.id ? "text-yellow-300" : "text-gray-200"}>
+                  <span
+                    className={
+                      e.dqAt
+                        ? "text-gray-500 line-through"
+                        : e.userId === user?.id
+                          ? "text-yellow-300"
+                          : "text-gray-200"
+                    }
+                  >
                     {e.user.username}
                   </span>
+                  {e.dqAt && (
+                    <span className="text-red-500 text-[10px] font-semibold">DQ</span>
+                  )}
                   {e.placement === 1 && <span>🏆</span>}
                   {e.placement != null && e.placement > 1 && (
                     <span className="text-gray-400 text-xs">#{e.placement}</span>
@@ -217,6 +410,26 @@ export default function TournamentDetail() {
                   {e.checkedInAt && t.status === "REGISTRATION" && (
                     <span className="text-green-500 text-xs">✓</span>
                   )}
+                  {isAdmin &&
+                    !e.dqAt &&
+                    (t.status === "REGISTRATION" || t.status === "ACTIVE") && (
+                      <button
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              `Disqualify ${e.user.username}? Mid-bracket, all their open matches are forfeited to the opponent.`
+                            )
+                          ) {
+                            dq.mutate(e.userId);
+                          }
+                        }}
+                        disabled={dq.isPending}
+                        title="Disqualify"
+                        className="ml-auto shrink-0 border border-red-900 hover:border-red-700 text-red-400 hover:text-red-300 rounded px-1.5 py-0.5 text-[10px] font-semibold disabled:opacity-50"
+                      >
+                        {dq.isPending && dq.variables === e.userId ? "…" : "DQ"}
+                      </button>
+                    )}
                 </li>
               ))}
             {t.entries.length === 0 && <li className="text-gray-500 text-sm">No entrants yet</li>}
@@ -255,6 +468,38 @@ export default function TournamentDetail() {
           )}
         </div>
       </div>
+
+      {isAdmin && (
+        <div className="space-y-4">
+          <h2 className="text-red-400/90 font-semibold text-xs uppercase tracking-wider">
+            Admin controls
+          </h2>
+          {t.status === "ACTIVE" && (
+            <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+              <h3 className="text-white font-semibold mb-1">Stuck matches</h3>
+              <p className="text-gray-500 text-xs mb-3">
+                Sets ready for 10+ minutes with no reported result. Overriding awards the set —
+                use it only when the players cannot finish.
+              </p>
+              {stuckMatches.length === 0 ? (
+                <p className="text-gray-500 text-sm">None right now.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {stuckMatches.map((m) => (
+                    <OverrideControl
+                      key={m.matchKey}
+                      tournamentId={t.id}
+                      match={m}
+                      names={entrantNames}
+                    />
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          <ReplayReviewsPanel tournamentId={t.id} />
+        </div>
+      )}
     </div>
   );
 }
