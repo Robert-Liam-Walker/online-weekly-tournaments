@@ -63,22 +63,29 @@ the convention since the scheduler UTC fix).
    champion. Tokens credited per the payout table; balance updates.
 7. Website shows the pretty bracket + results anytime.
 
-### Payouts (DECISION needed — math must check out)
+### Revenue model (LOCKED 2026-06-11): subscriptions gate tier access
 
-Notes: 1st = 70%, 2nd = "a bit more than money back", 3rd = money back.
-For an 8-player bracket at entry E (pool = 8E), the only split satisfying
-all three constraints with no rake is exactly:
+- **$5/mo** — access to the free-tier (no prize pool) nightly tournaments
+- **$10/mo** — adds access to small-pot series
+- **$20/mo** — adds access to large-pot series
 
-- 1st: 70% (5.6E) · 2nd: 17.5% (1.4E) · 3rd: 12.5% (1.0E) — totals 100%.
+Platform revenue = subscriptions. Prize pools come from token entries and
+pay out **100%**: 1st 70% (5.6E) · 2nd 17.5% (1.4E) · 3rd 12.5% (1.0E)
+on an 8-player pool — "we never touch the pot."
 
-That leaves **zero platform revenue from the pool**, so the rake has to
-live somewhere else. Options:
-- **A (recommended):** rake on token purchase (sell tokens at a spread)
-  and/or a cash-out fee — pools stay 100%-paid, marketing-friendly
-  ("we never touch the pot").
-- **B:** shave the split (e.g. 65/17.5/12.5 + 5% rake) — simpler books.
-- Splits for non-8 bracket sizes scale by percentage of pool, with 3rd ≈
-  entry refunded as the anchor.
+The repo's dormant Stripe subscription infrastructure (User.subscription
+Status, subscription routes + webhooks, STRIPE_PRICE_ID) is the
+foundation — extend from one price to three tier prices and gate
+registration by tier ⊆ subscription level.
+
+**Funnel note (flagged, not relitigated):** with $5/mo gating even the
+no-prize tier, the Reddit on-ramp has no free taste of the product.
+Consider a free trial period or "first night free" promo as an
+acquisition lever — decision deferred to launch marketing.
+
+**Bracket size (LOCKED): 8 fixed, all tiers.** Overflow signups spill
+into parallel 8-player brackets per series (multi-bracket-per-event was
+in the v1 product spec; engine handles it).
 
 ## Architecture
 
@@ -115,13 +122,10 @@ protocol-compatible matchmaking server** and point our fork at it
   largely dissolves (their Firebase login remains only for vanilla Slippi
   features in the launcher).
 
-### CI/CD (DECISION)
+### CI/CD (LOCKED): GitHub Actions
 
-Notes say AWS CodePipeline. **GitHub Actions → ECR → EB is already built,
-proven green end-to-end today** (version-asserted deploys, rerun-safe).
-Recommendation: keep GH Actions; CodePipeline would re-implement the same
-thing for no gain. Revisit only if we outgrow Actions (private runners,
-AWS-internal triggers).
+Stays on GH Actions → ECR → EB (proven green end-to-end 2026-06-11,
+version-asserted, rerun-safe). CodePipeline rejected as redundant.
 
 ### Compute
 - EB env is up (api). The matchmaking server becomes a second small
@@ -173,9 +177,14 @@ later · bracket size/format per tier (8 double-elim default?) · regions v1.
 - Protocol-compatible mm server (enet) + device-link auth + bracket-pair
   assignment; fork config points at it; staging soak with two accounts.
 
-### P4 — Paid tiers + payouts (gated on compliance)
-- Small/large tiers on; entry debits; payout credits live; Stripe Connect
-  cash-out last, behind KYC/geo/age gates.
+### P4 — Paid launch: subscriptions, paid tiers, payouts AND cash-out
+  (single gated release — LOCKED: cash-out ships with the first paid
+  release, so the full compliance workstream fronts this phase)
+- Subscription tiers $5/$10/$20 (extend the dormant Stripe subscription
+  infra to three prices; registration gated by tier ⊆ subscription).
+- Small/large pots live: entry debits, 70/17.5/12.5 payout credits.
+- Stripe Connect cash-out with KYC, 18+ gate, state geo-blocking —
+  Stripe review/approval is the long pole; start the conversation in P0.
 
 ### P5 — Smash 64 (separate project, after this ships)
 Same product on SSB64: requires rollback-enabled Slippi-style
@@ -190,12 +199,18 @@ replay upload/verification · admin/TO tools (DQ/override/reviews) ·
 device-link auth · launcher + manifest pipeline · AWS staging + CI/CD ·
 in-game event browser/lobby/bracket view.
 
-## Open questions for Robert
+## Decisions log (2026-06-11)
 
-1. Rake model A (purchase spread / cash-out fee, pools 100% paid) or B
-   (pool rake)?
-2. Confirm: keep GitHub Actions over CodePipeline?
-3. Cash-out in the first paid release, or paid-entry-with-token-prizes
-   first and cash-out later?
-4. Bracket size per tier — fixed 8? larger for free?
-5. Region set v1 — the 3 US regions only?
+1. **Revenue = subscriptions** ($5 free-tier access / $10 small / $20
+   large); pools pay out 100% (70/17.5/12.5). — LOCKED
+2. **CI/CD = GitHub Actions** (CodePipeline rejected). — LOCKED
+3. **Cash-out ships WITH the first paid release** (compliance fronts P4).
+   — LOCKED
+4. **Brackets = 8 fixed, all tiers**; overflow → parallel brackets. —
+   LOCKED
+
+## Still open
+
+- Region set v1: the 3 US regions only? (plan assumes yes)
+- Free-trial / first-night-free on the $5 tier (funnel lever — decide at
+  launch marketing)
