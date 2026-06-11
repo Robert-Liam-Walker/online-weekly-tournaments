@@ -37,7 +37,7 @@ function Nav() {
   return (
     <nav className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center gap-2">
       <FoxIcon size={22} />
-      <span className="text-white font-bold text-lg mr-4 ml-1.5">FoxTrot</span>
+      <span className="text-white font-bold text-lg mr-4 ml-1.5">Randall's Nightly Tournaments</span>
       <NavLink to="/arena" className={linkClass}>Arena</NavLink>
       <NavLink to="/tournaments" className={linkClass}>Tournaments</NavLink>
       <NavLink to="/friends" className={linkClass}>Friends</NavLink>

@@ -74,7 +74,7 @@ export default function Feed() {
       <div className="flex items-center gap-2 mb-4">
         <span className="text-gray-500 text-lg">#</span>
         <h1 className="text-white font-bold text-xl">main</h1>
-        <span className="text-gray-500 text-sm ml-2">General FoxTrot chat</span>
+        <span className="text-gray-500 text-sm ml-2">General Randall's chat</span>
       </div>
 
       {/* Messages */}
