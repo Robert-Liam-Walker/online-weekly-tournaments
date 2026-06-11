@@ -69,12 +69,14 @@ uses the same routes as the browser, distinguished only by auth method.
   `POST /api/replays/:tournamentId/matches/:matchKey/replay` (multipart),
   parse + winner cross-check → PENDING/VERIFIED/MISMATCH/MANUAL_REVIEW
   (`TournamentReplay` model); local disk storage with an S3 seam; 8 unit +
-  9 smoke tests. **KNOWN BUG to fix (`apps/api/src/lib/slippi.ts`):**
-  slippi-js 6.7 keys `metadata.players` by 0-based playerIndex but the code
-  indexes by 1-based port, and `winner` returns a 0-based index while the
-  interface documents a port — real replays would misattribute codes. The
-  replay route follows the documented contract, so a mismatch degrades to
-  MANUAL_REVIEW (never a false VERIFIED) until slippi.ts is fixed.
+  9 smoke tests. **Winner-attribution bug FIXED 2026-06-11
+  (`apps/api/src/lib/slippi.ts`):** `metadata.players` is keyed by 0-based
+  playerIndex (slippi-js 6.7) but the code indexed it by 1-based port, and
+  `winner` returned a 0-based index while the interface documents a port —
+  real replays misattributed codes. Now the connect code is looked up by
+  `playerIndex` and the winning index is mapped back to its port; covered by
+  `apps/api/tests/parseReplay.test.ts` (4 regression tests). Replay
+  verification (VERIFIED/MISMATCH) is now trustworthy.
 - **Realtime done:** Socket.io `tournament:update {tournamentId, kind}`
   emitted on register/checkin/start/report; web pages subscribe and refetch,
   polling kept as a 30s fallback.
