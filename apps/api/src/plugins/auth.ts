@@ -12,6 +12,24 @@ export async function requireAuth(
   }
 }
 
+/** Admin-only gate: valid JWT and User.role === ADMIN, otherwise 403. */
+export async function requireAdmin(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  await requireAuth(request, reply);
+  if (reply.sent) return;
+
+  const user = await prisma.user.findUnique({
+    where: { id: (request.user as { id: string }).id },
+    select: { role: true },
+  });
+
+  if (user?.role !== "ADMIN") {
+    reply.code(403).send({ error: "Admin access required", code: "ADMIN_REQUIRED" });
+  }
+}
+
 export async function requireSubscription(
   request: FastifyRequest,
   reply: FastifyReply

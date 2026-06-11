@@ -3,26 +3,44 @@ import { prisma } from "./prisma";
 import { startTournament } from "./bracketService";
 import { emitTournamentUpdate } from "./tournamentEvents";
 
-/** Next Saturday at the given hour (local server time). If today is Saturday, schedules for next Saturday. */
-function nextSaturday(hour: number): Date {
+/**
+ * Upcoming Saturday at the given hour, computed explicitly in UTC.
+ *
+ * Timezone policy: event times are stored and compared as absolute UTC instants
+ * (built via Date.UTC) so the server's local timezone can never shift them.
+ * Clients are responsible for rendering these instants in the viewer's local time.
+ *
+ * If today (in UTC) is Saturday, schedules for the following Saturday.
+ */
+function nextSaturdayUtc(hour: number): Date {
   const now = new Date();
-  const day = now.getDay(); // 0=Sun, 6=Sat
+  const day = now.getUTCDay(); // 0=Sun, 6=Sat
   const daysUntilSat = day === 6 ? 7 : 6 - day;
-  const sat = new Date(now);
-  sat.setDate(now.getDate() + daysUntilSat);
-  sat.setHours(hour, 0, 0, 0);
-  return sat;
+  // Date.UTC normalizes day-of-month overflow (e.g. Jan 30 + 6 days -> Feb 5).
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysUntilSat, hour, 0, 0, 0)
+  );
 }
 
 function weekLabel(): string {
-  return nextSaturday(14).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return nextSaturdayUtc(14).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC", // label must match the event's UTC date regardless of server timezone
+  });
 }
 
 export async function createWeeklyTournaments() {
-  const freeTime = nextSaturday(14); // 2:00 PM
-  const paidTime = nextSaturday(17); // 5:00 PM
+  // Public launch is FREE EVENTS ONLY: the paid Saturday event is created only
+  // when PAID_EVENTS_ENABLED === "true". Unset/anything else => free event only.
+  const paidEventsEnabled = process.env.PAID_EVENTS_ENABLED === "true";
 
-  // Idempotent — skip if tournaments already exist for this Saturday
+  const freeTime = nextSaturdayUtc(14); // Saturday 14:00 UTC
+  const paidTime = nextSaturdayUtc(17); // Saturday 17:00 UTC
+
+  // Idempotent — skip if tournaments already exist for this Saturday.
+  // The window intentionally spans the full 14:00–17:00 UTC slot even when paid
+  // events are disabled, so re-runs never duplicate the free event.
   const existing = await prisma.tournament.findFirst({
     where: { scheduledAt: { gte: freeTime, lte: paidTime } },
   });
@@ -34,7 +52,7 @@ export async function createWeeklyTournaments() {
 
   const label = weekLabel();
 
-  await Promise.all([
+  const creates: Promise<unknown>[] = [
     prisma.tournament.create({
       data: {
         name: `Weekly Open — ${label}`,
@@ -47,22 +65,31 @@ export async function createWeeklyTournaments() {
         status: "REGISTRATION",
       },
     }),
-    prisma.tournament.create({
-      data: {
-        name: `Weekly Invitational — ${label}`,
-        description:
-          "$5 entry. Prize pool paid out to top 3: 50% / 25% / 10%. Best of 5, double elimination.",
-        scheduledAt: paidTime,
-        format: "DOUBLE_ELIM",
-        seriesFormat: "BO5",
-        maxEntrants: 16,
-        entryFee: 500,
-        status: "REGISTRATION",
-      },
-    }),
-  ]);
+  ];
 
-  console.log(`[scheduler] Created weekly tournaments for ${label}.`);
+  if (paidEventsEnabled) {
+    creates.push(
+      prisma.tournament.create({
+        data: {
+          name: `Weekly Invitational — ${label}`,
+          description:
+            "$5 entry. Prize pool paid out to top 3: 50% / 25% / 10%. Best of 5, double elimination.",
+          scheduledAt: paidTime,
+          format: "DOUBLE_ELIM",
+          seriesFormat: "BO5",
+          maxEntrants: 16,
+          entryFee: 500,
+          status: "REGISTRATION",
+        },
+      })
+    );
+  }
+
+  await Promise.all(creates);
+
+  console.log(
+    `[scheduler] Created ${paidEventsEnabled ? "free + paid" : "free-only"} weekly tournament(s) for ${label}.`
+  );
 }
 
 /** Start (or cancel) any tournament whose scheduled time has arrived */

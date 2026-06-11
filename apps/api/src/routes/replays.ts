@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
+import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { requireAuth } from "../plugins/auth";
+import { requireAdmin, requireAuth } from "../plugins/auth";
 import { parseReplayBuffer, ParsedReplay } from "../lib/slippi";
 import { saveReplayFile } from "../lib/replayStorage";
 
@@ -145,6 +146,51 @@ export async function replayRoutes(app: FastifyInstance) {
         orderBy: { createdAt: "desc" },
       });
       return { replays };
+    }
+  );
+
+  // GET /api/replays/reviews/:tournamentId — admin review queue: every
+  // replay for the tournament that is not yet VERIFIED (PENDING, MISMATCH,
+  // MANUAL_REVIEW), newest first.
+  app.get(
+    "/reviews/:tournamentId",
+    { preHandler: [requireAdmin] },
+    async (request) => {
+      const { tournamentId } = request.params as { tournamentId: string };
+      const replays = await prisma.tournamentReplay.findMany({
+        where: { tournamentId, verification: { not: "VERIFIED" } },
+        orderBy: { createdAt: "desc" },
+      });
+      return { replays };
+    }
+  );
+
+  // PATCH /api/replays/:replayId/resolve — admin resolves a flagged replay:
+  // sets the final verification verdict and records who resolved it when.
+  app.patch(
+    "/:replayId/resolve",
+    { preHandler: [requireAdmin] },
+    async (request, reply) => {
+      const adminId = (request.user as { id: string }).id;
+      const { replayId } = request.params as { replayId: string };
+      const schema = z.object({
+        verification: z.enum(["VERIFIED", "MISMATCH", "MANUAL_REVIEW"]),
+      });
+      const body = schema.safeParse(request.body);
+      if (!body.success) return reply.code(400).send({ error: body.error.flatten() });
+
+      const existing = await prisma.tournamentReplay.findUnique({ where: { id: replayId } });
+      if (!existing) return reply.code(404).send({ error: "Replay not found" });
+
+      const replay = await prisma.tournamentReplay.update({
+        where: { id: replayId },
+        data: {
+          verification: body.data.verification,
+          resolvedAt: new Date(),
+          resolvedById: adminId,
+        },
+      });
+      return { replay };
     }
   );
 }
