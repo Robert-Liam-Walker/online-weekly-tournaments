@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import { prisma } from "./prisma";
 import { startTournament } from "./bracketService";
+import { emitTournamentUpdate } from "./tournamentEvents";
 
 /** Next Saturday at the given hour (local server time). If today is Saturday, schedules for next Saturday. */
 function nextSaturday(hour: number): Date {
@@ -71,6 +72,7 @@ export async function startDueTournaments() {
   });
   for (const t of due) {
     const result = await startTournament(t.id);
+    if (result.started) emitTournamentUpdate(t.id, "started");
     console.log(
       `[scheduler] ${t.name}: ${result.started ? "started" : `not started (${result.reason})`}`
     );

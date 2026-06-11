@@ -1,13 +1,15 @@
+import { useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
+import { getSocket } from "../lib/socket";
 import { useAuthStore } from "../hooks/useAuth";
 import { TournamentDetail as TournamentDetailType } from "../types";
 
 // Mirrors the in-game bracket view: winners rounds as columns with grand
 // finals topping the row, losers bracket below; winner green, loser red,
-// ready white, undecided dimmed. Polls so results reported from inside
-// Melee appear here within seconds.
+// ready white, undecided dimmed. Results reported from inside Melee arrive
+// via the "tournament:update" socket event (slow polling kept as fallback).
 
 const CHECKIN_OPENS_MINUTES_BEFORE = 30;
 
@@ -106,8 +108,21 @@ export default function TournamentDetail() {
   const { data: t, isLoading } = useQuery<TournamentDetailType>({
     queryKey: ["tournament", id],
     queryFn: async () => (await api.get(`/tournaments/${id}`)).data,
-    refetchInterval: 5000, // live mirror of what the game sees
+    refetchInterval: 30000, // fallback only — socket pushes drive updates
   });
+
+  // Push-based updates: refetch when the API signals a change to this event
+  useEffect(() => {
+    if (!id) return;
+    const socket = getSocket();
+    const onUpdate = (payload: { tournamentId: string; kind: string }) => {
+      if (payload.tournamentId === id) {
+        queryClient.invalidateQueries({ queryKey: ["tournament", id] });
+      }
+    };
+    socket.on("tournament:update", onUpdate);
+    return () => { socket.off("tournament:update", onUpdate); };
+  }, [id, queryClient]);
 
   const register = useMutation({
     mutationFn: async () => (await api.post(`/tournaments/${id}/register`)).data,

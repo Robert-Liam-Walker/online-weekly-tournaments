@@ -165,6 +165,25 @@ model DeviceLinkCode {
   createdAt   DateTime  @default(now())
 }
 
+// Replay evidence (.slp) attached to a tournament set. Parsed server-side;
+// the parsed winner is cross-checked against the reported result (roadmap
+// Phase 1 E). Plain string FKs (like DeviceLinkCode) to keep this additive.
+model TournamentReplay {
+  id               String             @id @default(cuid())
+  tournamentId     String
+  matchKey         String
+  uploaderId       String
+  fileName         String
+  storagePath      String
+  stage            Int?
+  durationFrames   Int?
+  parsedWinnerCode String?
+  verification     ReplayVerification @default(PENDING)
+  createdAt        DateTime           @default(now())
+
+  @@index([tournamentId, matchKey])
+}
+
 model TournamentMatch {
   id           String     @id @default(cuid())
   tournamentId String
@@ -223,4 +242,11 @@ enum FriendRequestStatus {
   PENDING
   ACCEPTED
   DECLINED
+}
+
+enum ReplayVerification {
+  PENDING
+  VERIFIED
+  MISMATCH
+  MANUAL_REVIEW
 }

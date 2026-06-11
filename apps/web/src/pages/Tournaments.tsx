@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Tournament } from "../types";
 import { api } from "../lib/api";
+import { getSocket } from "../lib/socket";
 
 const PRIZE_SPLIT = { first: 50, second: 25, third: 10, platform: 15 };
 
@@ -126,6 +127,14 @@ export default function Tournaments() {
     queryKey: ["tournaments"],
     queryFn: () => api.get("/tournaments").then((r) => r.data),
   });
+
+  // Any tournament state change refreshes the list (entrant counts, status)
+  useEffect(() => {
+    const socket = getSocket();
+    const onUpdate = () => queryClient.invalidateQueries({ queryKey: ["tournaments"] });
+    socket.on("tournament:update", onUpdate);
+    return () => { socket.off("tournament:update", onUpdate); };
+  }, [queryClient]);
 
   const register = useMutation({
     mutationFn: async (t: Tournament) => {

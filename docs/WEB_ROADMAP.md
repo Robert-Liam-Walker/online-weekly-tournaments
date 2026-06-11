@@ -52,6 +52,34 @@ uses the same routes as the browser, distinguished only by auth method.
 
 ## Build priorities
 
+### Progress (2026-06-11)
+
+- **A/B done:** `/tournaments` list + `/tournaments/:id` detail with a live
+  bracket mirror (winners columns, GF topping the row, losers below;
+  green/red/dim) — same filtering as the in-game view.
+- **C done:** the detail page's bracket IS the live mirror.
+- **D — API + web DONE, Dolphin remaining.** `/device` page + the full
+  `/api/device/link/{start,confirm,status}` flow with a one-shot 30-day JWT
+  (DeviceLinkCode model); e2e `smoke-device-link.ts` passes. Swapping the
+  Dolphin client from connect-code `game-login` to device-link was attempted
+  by an agent but reverted — it left the emulator C++ unbuildable-to-verify
+  and still needs a game-side piece (show the 6-char code on screen). Do it
+  as one focused end-to-end pass (Dolphin EXI cmd + token persist + in-game
+  display + a real Dolphin build).
+- **E done:** replay attachment for tournament sets —
+  `POST /api/replays/:tournamentId/matches/:matchKey/replay` (multipart),
+  parse + winner cross-check → PENDING/VERIFIED/MISMATCH/MANUAL_REVIEW
+  (`TournamentReplay` model); local disk storage with an S3 seam; 8 unit +
+  9 smoke tests. **KNOWN BUG to fix (`apps/api/src/lib/slippi.ts`):**
+  slippi-js 6.7 keys `metadata.players` by 0-based playerIndex but the code
+  indexes by 1-based port, and `winner` returns a 0-based index while the
+  interface documents a port — real replays would misattribute codes. The
+  replay route follows the documented contract, so a mismatch degrades to
+  MANUAL_REVIEW (never a false VERIFIED) until slippi.ts is fixed.
+- **Realtime done:** Socket.io `tournament:update {tournamentId, kind}`
+  emitted on register/checkin/start/report; web pages subscribe and refetch,
+  polling kept as a 30s fallback.
+
 ### Phase 1 — support the confirmed in-game loop
 
 A. **`/tournaments`** — public list. Same data the in-game browser shows
