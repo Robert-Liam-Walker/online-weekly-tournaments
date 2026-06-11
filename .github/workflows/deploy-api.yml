@@ -107,12 +107,17 @@ jobs:
             --environment-name "${EB_ENVIRONMENT}" \
             --version-label "${VERSION_LABEL}"
 
-      - name: Wait for environment to go green
+      - name: Wait for environment to go green on the new version
+        env:
+          VERSION_LABEL: ${{ github.sha }}-${{ github.run_id }}
         run: |
           aws elasticbeanstalk wait environment-updated \
             --environment-names "${EB_ENVIRONMENT}"
-          HEALTH=$(aws elasticbeanstalk describe-environments \
+          read -r HEALTH DEPLOYED <<< "$(aws elasticbeanstalk describe-environments \
             --environment-names "${EB_ENVIRONMENT}" \
-            --query 'Environments[0].Health' --output text)
-          echo "Environment health: ${HEALTH}"
+            --query 'Environments[0].[Health,VersionLabel]' --output text)"
+          echo "Environment health: ${HEALTH}, running version: ${DEPLOYED}"
+          # Green alone is NOT success: a failed deploy rolls back to the
+          # previous (healthy) version. Assert the env runs OUR version.
           test "${HEALTH}" = "Green"
+          test "${DEPLOYED}" = "${VERSION_LABEL}"
