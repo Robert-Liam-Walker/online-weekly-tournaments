@@ -10,6 +10,13 @@ export default defineConfig({
         target: "http://localhost:3001",
         changeOrigin: true,
       },
+      // Socket.io now shares the API port (3001); proxy websockets in dev so
+      // the client can stay same-origin.
+      "/socket.io": {
+        target: "http://localhost:3001",
+        changeOrigin: true,
+        ws: true,
+      },
     },
   },
 });

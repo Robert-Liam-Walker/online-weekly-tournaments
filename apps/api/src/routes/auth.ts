@@ -17,8 +17,14 @@ const loginSchema = z.object({
   password: z.string(),
 });
 
+// Brute-force protection: account creation and credential checks get a much
+// stricter per-IP budget than the global API limit.
+const strictRateLimit = {
+  rateLimit: { max: 10, timeWindow: "1 minute" },
+};
+
 export async function authRoutes(app: FastifyInstance) {
-  app.post("/register", async (request, reply) => {
+  app.post("/register", { config: strictRateLimit }, async (request, reply) => {
     const body = registerSchema.safeParse(request.body);
     if (!body.success) {
       return reply.code(400).send({ error: body.error.flatten() });
@@ -45,7 +51,7 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.code(201).send({ user, token });
   });
 
-  app.post("/login", async (request, reply) => {
+  app.post("/login", { config: strictRateLimit }, async (request, reply) => {
     const body = loginSchema.safeParse(request.body);
     if (!body.success) {
       return reply.code(400).send({ error: body.error.flatten() });
@@ -78,11 +84,13 @@ export async function authRoutes(app: FastifyInstance) {
 
   // Game-client login: the FoxTrot Dolphin build authenticates with the
   // connect code from the player's Slippi login (user.json).
-  // v1 TRUST MODEL: possession of the connect code is taken as identity —
-  // good enough for development. TODO before public launch: replace with a
-  // web-issued device link code (see TOURNAMENT_INTEGRATION.md in
-  // FoxTrotMelee) so the game session is bound to a real web login.
-  app.post("/game-login", async (request, reply) => {
+  // DEPRECATED (2026-06-11): the Dolphin client now uses the device-link
+  // flow exclusively; this route remains only for dev smoke scripts and old
+  // builds. Strictly rate-limited; REMOVE once the release client is
+  // confirmed in-game and the smoke scripts are migrated to device-link.
+  app.post("/game-login", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+  }, async (request, reply) => {
     const schema = z.object({ connectCode: z.string().min(3).max(10) });
     const body = schema.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: body.error.flatten() });

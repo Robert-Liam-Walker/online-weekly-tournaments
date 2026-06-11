@@ -1,6 +1,6 @@
 // Smoke test for push-based tournament updates over Socket.io:
 //   npx -w apps/api tsx scripts/smoke-socket.ts
-// Requires the dev API running (HTTP on 127.0.0.1:3001, Socket.io on 3002).
+// Requires the dev API running (HTTP + Socket.io share port 3001).
 // Logs in as WEDE#971 via /auth/game-login, opens an authenticated socket,
 // creates a throwaway tournament over HTTP, registers for it, and asserts
 // the "tournament:update" {kind:"entry"} broadcast arrives within 5 seconds.
@@ -10,7 +10,7 @@ import { io, Socket } from "socket.io-client";
 import { prisma } from "../src/lib/prisma";
 
 const API = "http://127.0.0.1:3001/api";
-const SOCKET_URL = "http://127.0.0.1:3002";
+const SOCKET_URL = "http://127.0.0.1:3001"; // Socket.io rides the API port
 const NAME = "Socket Smoke (disposable)";
 const EVENT_TIMEOUT_MS = 5000;
 
