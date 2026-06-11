@@ -73,7 +73,7 @@ jobs:
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
-          VERSION_LABEL: ${{ github.sha }}-${{ github.run_id }}
+          VERSION_LABEL: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           # Single-container Docker source bundle: just a Dockerrun pointing
           # at the image we pushed. The EB instance profile needs
@@ -109,7 +109,7 @@ jobs:
 
       - name: Wait for environment to go green on the new version
         env:
-          VERSION_LABEL: ${{ github.sha }}-${{ github.run_id }}
+          VERSION_LABEL: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           aws elasticbeanstalk wait environment-updated \
             --environment-names "${EB_ENVIRONMENT}"
