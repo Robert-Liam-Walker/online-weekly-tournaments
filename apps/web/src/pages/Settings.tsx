@@ -95,7 +95,7 @@ export default function Settings() {
         <div className="bg-gray-800 rounded-xl p-6 mb-4">
           <h2 className="text-white font-semibold mb-1">Slippi Replays Folder</h2>
           <p className="text-gray-400 text-sm mb-4">
-            Connect your Slippi replays folder and FoxTrot will automatically detect game results during a series — no uploads needed.
+            Connect your Slippi replays folder and Randall's will automatically detect game results during a series — no uploads needed.
           </p>
           {folderName ? (
             <div className="flex items-center gap-4">
