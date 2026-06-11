@@ -1,0 +1,92 @@
+name: Deploy Web
+
+# Builds the Vite bundle and syncs it to the web S3 bucket, then invalidates
+# CloudFront. Skips cleanly until AWS credentials + bucket are configured.
+# Required configuration (see docs/DEPLOY.md):
+#   Secrets:   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
+#              VITE_STRIPE_PUBLISHABLE_KEY (publishable, but keep it managed)
+#   Variables: WEB_S3_BUCKET (required), AWS_REGION,
+#              CLOUDFRONT_DISTRIBUTION_ID (skips invalidation when empty),
+#              VITE_API_URL, VITE_SOCKET_URL
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.gate.outputs.deploy }}
+    steps:
+      - name: Check for AWS credentials and target bucket
+        id: gate
+        env:
+          HAS_SECRETS: ${{ secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '' && vars.WEB_S3_BUCKET != '' }}
+        run: |
+          echo "deploy=${HAS_SECRETS}" >> "$GITHUB_OUTPUT"
+          if [ "${HAS_SECRETS}" != "true" ]; then
+            echo "::notice::AWS secrets / WEB_S3_BUCKET not configured — skipping web deploy."
+          fi
+
+  deploy:
+    needs: preflight
+    if: needs.preflight.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared package
+        run: npm run build -w packages/shared
+
+      - name: Build web
+        env:
+          # Baked into the bundle at build time (import.meta.env.*).
+          VITE_API_URL: ${{ secrets.VITE_API_URL || vars.VITE_API_URL }}
+          VITE_SOCKET_URL: ${{ secrets.VITE_SOCKET_URL || vars.VITE_SOCKET_URL }}
+          VITE_STRIPE_PUBLISHABLE_KEY: ${{ secrets.VITE_STRIPE_PUBLISHABLE_KEY }}
+        run: npm run build -w apps/web
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Sync to S3
+        env:
+          WEB_S3_BUCKET: ${{ vars.WEB_S3_BUCKET }}
+        run: |
+          # Hashed assets are immutable; index.html must always revalidate so
+          # new deploys are picked up immediately.
+          aws s3 sync apps/web/dist "s3://${WEB_S3_BUCKET}" \
+            --delete \
+            --exclude index.html \
+            --cache-control "public,max-age=31536000,immutable"
+          aws s3 cp apps/web/dist/index.html "s3://${WEB_S3_BUCKET}/index.html" \
+            --cache-control "no-cache"
+
+      - name: Invalidate CloudFront
+        env:
+          DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          if [ -z "${DISTRIBUTION_ID}" ]; then
+            echo "::notice::CLOUDFRONT_DISTRIBUTION_ID not set — skipping invalidation."
+            exit 0
+          fi
+          aws cloudfront create-invalidation \
+            --distribution-id "${DISTRIBUTION_ID}" \
+            --paths "/*"

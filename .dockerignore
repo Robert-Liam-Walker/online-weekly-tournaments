@@ -1,0 +1,28 @@
+# Dependencies — installed inside the image from the lockfile.
+node_modules
+**/node_modules
+
+# Build output — produced inside the image.
+**/dist
+*.tsbuildinfo
+
+# Secrets — NEVER ship env files into an image layer.
+**/.env
+**/.env.*
+!**/.env.example
+
+# Local replay storage (can be huge; prod uses S3).
+storage
+
+# VCS / CI / docs / local tooling — irrelevant to the image.
+.git
+.github
+.gitignore
+docs
+*.md
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# OS noise
+.DS_Store
