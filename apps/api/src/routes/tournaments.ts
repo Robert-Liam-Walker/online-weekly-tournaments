@@ -1,10 +1,11 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { requireAuth } from "../plugins/auth";
+import { requireAdmin, requireAuth } from "../plugins/auth";
 import { stripe } from "../lib/stripe";
 import {
   checkinWindowOpen,
+  dqTournamentEntry,
   getReadyTournamentMatches,
   reportTournamentResult,
   startTournament,
@@ -13,6 +14,12 @@ import { emitTournamentUpdate } from "../lib/tournamentEvents";
 
 // Prize distribution (must sum to 100)
 export const PRIZE_SPLIT = { first: 50, second: 25, third: 10, platform: 15 };
+
+// Paid (entry-fee) events are feature-flagged off until the payout flow
+// ships. Checked at request time so tests/ops can flip it without reload.
+export function paidEventsEnabled(): boolean {
+  return process.env.PAID_EVENTS_ENABLED === "true";
+}
 
 export async function tournamentRoutes(app: FastifyInstance) {
   // GET /api/tournaments — list all. Public; if a JWT is supplied the
@@ -106,7 +113,12 @@ export async function tournamentRoutes(app: FastifyInstance) {
       return reply.code(201).send({ entry });
     }
 
-    // Paid tournament — create Stripe checkout session
+    // Paid tournament — feature-flagged off until payouts ship
+    if (!paidEventsEnabled()) {
+      return reply.code(400).send({ error: "Paid events are not available yet" });
+    }
+
+    // Create Stripe checkout session
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { email: true, stripeCustomerId: true },
@@ -141,8 +153,8 @@ export async function tournamentRoutes(app: FastifyInstance) {
     return { checkoutUrl: session.url };
   });
 
-  // POST /api/tournaments — create tournament
-  app.post("/", { preHandler: [requireAuth] }, async (request, reply) => {
+  // POST /api/tournaments — create tournament (admins only)
+  app.post("/", { preHandler: [requireAdmin] }, async (request, reply) => {
     const schema = z.object({
       name: z.string().min(3).max(100),
       description: z.string().max(500).optional(),
@@ -155,6 +167,10 @@ export async function tournamentRoutes(app: FastifyInstance) {
 
     const body = schema.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: body.error.flatten() });
+
+    if (body.data.entryFee > 0 && !paidEventsEnabled()) {
+      return reply.code(400).send({ error: "Paid events are not available yet" });
+    }
 
     const tournament = await prisma.tournament.create({
       data: { ...body.data, scheduledAt: new Date(body.data.scheduledAt) },
@@ -227,12 +243,96 @@ export async function tournamentRoutes(app: FastifyInstance) {
       const body = schema.safeParse(request.body);
       if (!body.success) return reply.code(400).send({ error: body.error.flatten() });
 
+      const tournament = await prisma.tournament.findUnique({ where: { id } });
+      if (!tournament) return reply.code(404).send({ error: "Tournament not found" });
+      if (tournament.status !== "ACTIVE") {
+        return reply.code(409).send({ error: "Tournament is not active" });
+      }
+
       const match = await prisma.tournamentMatch.findUnique({
         where: { tournamentId_matchKey: { tournamentId: id, matchKey } },
       });
       if (!match) return reply.code(404).send({ error: "Match not found" });
       if (userId !== match.player1Id && userId !== match.player2Id) {
         return reply.code(403).send({ error: "Only match participants can report" });
+      }
+      if (match.winnerId) {
+        return reply
+          .code(409)
+          .send({ error: "Result already reported — contact a TO to dispute" });
+      }
+
+      try {
+        const result = await reportTournamentResult(id, matchKey, body.data.winnerId);
+        emitTournamentUpdate(id, result.complete ? "completed" : "result");
+        return result;
+      } catch (err) {
+        return reply.code(409).send({ error: (err as Error).message });
+      }
+    }
+  );
+
+  // POST /api/tournaments/:id/entries/:userId/dq — disqualify a player (TO
+  // action). Before the start the entry is simply excluded from the bracket;
+  // mid-bracket every ready match involving the player is forfeited to the
+  // opponent (cascading as the player drops through losers).
+  app.post(
+    "/:id/entries/:userId/dq",
+    { preHandler: [requireAdmin] },
+    async (request, reply) => {
+      const { id, userId } = request.params as { id: string; userId: string };
+
+      const tournament = await prisma.tournament.findUnique({ where: { id } });
+      if (!tournament) return reply.code(404).send({ error: "Tournament not found" });
+      if (tournament.status === "COMPLETED" || tournament.status === "CANCELED") {
+        return reply.code(409).send({ error: `Tournament is ${tournament.status.toLowerCase()}` });
+      }
+
+      const entry = await prisma.tournamentEntry.findUnique({
+        where: { tournamentId_userId: { tournamentId: id, userId } },
+      });
+      if (!entry) return reply.code(404).send({ error: "Player is not entered in this tournament" });
+      if (entry.dqAt) return reply.code(409).send({ error: "Player is already disqualified" });
+
+      try {
+        const result = await dqTournamentEntry(id, userId);
+        emitTournamentUpdate(id, result.complete ? "completed" : "result");
+        return { disqualified: true, ...result };
+      } catch (err) {
+        return reply.code(409).send({ error: (err as Error).message });
+      }
+    }
+  );
+
+  // POST /api/tournaments/:id/matches/:matchKey/override — TO resolves a
+  // stuck match (both players known, neither reported). Already-reported
+  // results cannot be overridden — disputes go through DQ instead.
+  app.post(
+    "/:id/matches/:matchKey/override",
+    { preHandler: [requireAdmin] },
+    async (request, reply) => {
+      const { id, matchKey } = request.params as { id: string; matchKey: string };
+      const schema = z.object({ winnerId: z.string() });
+      const body = schema.safeParse(request.body);
+      if (!body.success) return reply.code(400).send({ error: body.error.flatten() });
+
+      const tournament = await prisma.tournament.findUnique({ where: { id } });
+      if (!tournament) return reply.code(404).send({ error: "Tournament not found" });
+      if (tournament.status !== "ACTIVE") {
+        return reply.code(409).send({ error: "Tournament is not active" });
+      }
+
+      const match = await prisma.tournamentMatch.findUnique({
+        where: { tournamentId_matchKey: { tournamentId: id, matchKey } },
+      });
+      if (!match) return reply.code(404).send({ error: "Match not found" });
+      if (match.winnerId) {
+        return reply.code(409).send({
+          error: "Result already reported — disqualify the offending player instead",
+        });
+      }
+      if (!match.player1Id || !match.player2Id) {
+        return reply.code(409).send({ error: "Match does not have both players yet" });
       }
 
       try {

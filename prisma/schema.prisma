@@ -13,6 +13,7 @@ model User {
   email              String             @unique
   passwordHash       String
   connectCode        String             @unique
+  role               UserRole           @default(USER)
   stripeCustomerId   String?            @unique
   subscriptionStatus SubscriptionStatus @default(FREE)
   subscriptionEndsAt DateTime?
@@ -144,6 +145,7 @@ model TournamentEntry {
   userId       String
   seed         Int?
   checkedInAt  DateTime?
+  dqAt         DateTime?
   placement    Int?
   createdAt    DateTime   @default(now())
   tournament   Tournament @relation(fields: [tournamentId], references: [id])
@@ -179,6 +181,8 @@ model TournamentReplay {
   durationFrames   Int?
   parsedWinnerCode String?
   verification     ReplayVerification @default(PENDING)
+  resolvedAt       DateTime?
+  resolvedById     String?
   createdAt        DateTime           @default(now())
 
   @@index([tournamentId, matchKey])
@@ -193,11 +197,17 @@ model TournamentMatch {
   player1Id    String?
   player2Id    String?
   winnerId     String?
+  readyAt      DateTime?
   createdAt    DateTime   @default(now())
   series       Series?
   tournament   Tournament @relation(fields: [tournamentId], references: [id])
 
   @@unique([tournamentId, matchKey])
+}
+
+enum UserRole {
+  USER
+  ADMIN
 }
 
 enum Format {
