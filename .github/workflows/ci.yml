@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      # The api (and potentially the web app) import @foxtrot/shared from its
+      # dist/, so it must be built before any typecheck.
+      - name: Build shared package
+        run: npm run build -w packages/shared
+
+      - name: Test shared package
+        run: npm run test -w packages/shared
+
+      - name: Typecheck api
+        run: npx -w apps/api tsc --noEmit
+
+      - name: Test api
+        run: npm run test -w apps/api
+
+      # apps/web "build" runs `tsc && vite build` — typecheck + bundle in one.
+      - name: Typecheck and build web
+        run: npm run build -w apps/web

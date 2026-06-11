@@ -1,0 +1,118 @@
+name: Deploy API
+
+# Builds the Docker image, pushes it to ECR, and rolls it out to Elastic
+# Beanstalk via S3 + create-application-version + update-environment.
+#
+# The whole pipeline skips cleanly (green check, "skipped" deploy job) until
+# AWS credentials are configured, so forks and pre-AWS development never go
+# red. Required configuration (see docs/DEPLOY.md):
+#   Secrets:   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+#   Variables: AWS_REGION, ECR_REPOSITORY, EB_APPLICATION, EB_ENVIRONMENT
+#              (all optional — defaults below)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.gate.outputs.deploy }}
+    steps:
+      # The secrets context is not available in job-level `if`, so surface
+      # its presence through a step output instead.
+      - name: Check for AWS credentials
+        id: gate
+        env:
+          HAS_SECRETS: ${{ secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '' }}
+        run: |
+          echo "deploy=${HAS_SECRETS}" >> "$GITHUB_OUTPUT"
+          if [ "${HAS_SECRETS}" != "true" ]; then
+            echo "::notice::AWS secrets not configured — skipping API deploy."
+          fi
+
+  deploy:
+    needs: preflight
+    if: needs.preflight.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    env:
+      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'foxtrot-api' }}
+      EB_APPLICATION: ${{ vars.EB_APPLICATION || 'foxtrot' }}
+      EB_ENVIRONMENT: ${{ vars.EB_ENVIRONMENT || 'foxtrot-api-prod' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr
+
+      - name: Build and push image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            -t "${REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}" \
+            -t "${REGISTRY}/${ECR_REPOSITORY}:latest" \
+            .
+          docker push "${REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+          docker push "${REGISTRY}/${ECR_REPOSITORY}:latest"
+
+      - name: Deploy to Elastic Beanstalk
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+          VERSION_LABEL: ${{ github.sha }}-${{ github.run_id }}
+        run: |
+          # Single-container Docker source bundle: just a Dockerrun pointing
+          # at the image we pushed. The EB instance profile needs
+          # AmazonEC2ContainerRegistryReadOnly to pull it.
+          cat > Dockerrun.aws.json <<EOF
+          {
+            "AWSEBDockerrunVersion": "1",
+            "Image": {
+              "Name": "${REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}",
+              "Update": "true"
+            },
+            "Ports": [
+              { "ContainerPort": 3001 }
+            ]
+          }
+          EOF
+          zip -r bundle.zip Dockerrun.aws.json
+
+          # EB's per-account/region artifacts bucket (creates it if missing).
+          BUCKET=$(aws elasticbeanstalk create-storage-location \
+            --query S3Bucket --output text)
+          KEY="foxtrot-api/${VERSION_LABEL}.zip"
+          aws s3 cp bundle.zip "s3://${BUCKET}/${KEY}"
+
+          aws elasticbeanstalk create-application-version \
+            --application-name "${EB_APPLICATION}" \
+            --version-label "${VERSION_LABEL}" \
+            --source-bundle "S3Bucket=${BUCKET},S3Key=${KEY}"
+
+          aws elasticbeanstalk update-environment \
+            --environment-name "${EB_ENVIRONMENT}" \
+            --version-label "${VERSION_LABEL}"
+
+      - name: Wait for environment to go green
+        run: |
+          aws elasticbeanstalk wait environment-updated \
+            --environment-names "${EB_ENVIRONMENT}"
+          HEALTH=$(aws elasticbeanstalk describe-environments \
+            --environment-names "${EB_ENVIRONMENT}" \
+            --query 'Environments[0].Health' --output text)
+          echo "Environment health: ${HEALTH}"
+          test "${HEALTH}" = "Green"
