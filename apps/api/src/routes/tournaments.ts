@@ -32,7 +32,12 @@ export async function tournamentRoutes(app: FastifyInstance) {
     });
 
     if (!viewerId) {
-      return tournaments.map((t) => ({ ...t, viewerRegistered: false, viewerCheckedIn: false }));
+      return tournaments.map((t) => ({
+        ...t,
+        viewerRegistered: false,
+        viewerCheckedIn: false,
+        viewerPlacement: null,
+      }));
     }
     const myEntries = await prisma.tournamentEntry.findMany({
       where: { userId: viewerId, tournamentId: { in: tournaments.map((t) => t.id) } },
@@ -42,6 +47,7 @@ export async function tournamentRoutes(app: FastifyInstance) {
       ...t,
       viewerRegistered: byTournament.has(t.id),
       viewerCheckedIn: byTournament.get(t.id)?.checkedInAt != null,
+      viewerPlacement: byTournament.get(t.id)?.placement ?? null,
     }));
   });
 
