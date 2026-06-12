@@ -44,7 +44,6 @@ async function makeUsers(scenario: string, n: number): Promise<U[]> {
           username: `${TAG}-${scenario}-p${i}`,
           email: `${TAG}-${scenario}-p${i}@example.invalid`,
           passwordHash: "x",
-          connectCode: `NS${scenario.slice(0, 1).toUpperCase()}${i}#${i}`,
         },
       })
     );

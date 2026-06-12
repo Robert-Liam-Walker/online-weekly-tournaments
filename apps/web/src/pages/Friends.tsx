@@ -6,7 +6,6 @@ import { getSocket } from "../lib/socket";
 interface Friend {
   id: string;
   username: string;
-  connectCode: string;
 }
 
 interface IncomingRequest {
@@ -19,7 +18,7 @@ interface IncomingRequest {
 
 export default function Friends() {
   const queryClient = useQueryClient();
-  const [connectCode, setConnectCode] = useState("");
+  const [username, setUsername] = useState("");
   const [sendError, setSendError] = useState("");
   const [sendSuccess, setSendSuccess] = useState("");
 
@@ -43,11 +42,11 @@ export default function Friends() {
   }, [queryClient]);
 
   const sendRequest = useMutation({
-    mutationFn: (code: string) => api.post("/friends/request", { connectCode: code }),
+    mutationFn: (name: string) => api.post("/friends/request", { username: name }),
     onSuccess: () => {
       setSendSuccess("Friend request sent!");
       setSendError("");
-      setConnectCode("");
+      setUsername("");
     },
     onError: (err: unknown) => {
       const msg =
@@ -94,9 +93,6 @@ export default function Friends() {
               <div key={req.id} className="flex items-center justify-between">
                 <div>
                   <span className="text-white font-medium">{req.requester.username}</span>
-                  <span className="text-gray-400 text-sm font-mono ml-2">
-                    {req.requester.connectCode}
-                  </span>
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -122,19 +118,19 @@ export default function Friends() {
 
       {/* Add friend */}
       <div className="bg-gray-800 rounded-xl p-5 mb-6">
-        <h2 className="text-white font-semibold mb-3">Add Friend by Connect Code</h2>
+        <h2 className="text-white font-semibold mb-3">Add Friend by Username</h2>
         <div className="flex gap-3">
           <input
             type="text"
-            value={connectCode}
-            onChange={(e) => setConnectCode(e.target.value.toUpperCase())}
-            placeholder="FOXT#123"
-            className="flex-1 bg-gray-700 text-white rounded-lg px-4 py-2.5 font-mono border border-gray-600 focus:border-blue-500 focus:outline-none"
-            maxLength={10}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="ssbmplayer"
+            className="flex-1 bg-gray-700 text-white rounded-lg px-4 py-2.5 border border-gray-600 focus:border-blue-500 focus:outline-none"
+            maxLength={15}
           />
           <button
-            onClick={() => { if (connectCode) sendRequest.mutate(connectCode); }}
-            disabled={sendRequest.isPending || !connectCode}
+            onClick={() => { if (username) sendRequest.mutate(username); }}
+            disabled={sendRequest.isPending || !username}
             className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-5 py-2.5 rounded-lg font-medium transition-colors"
           >
             {sendRequest.isPending ? "Sending..." : "Send Request"}
@@ -166,7 +162,6 @@ export default function Friends() {
               >
                 <div>
                   <span className="text-white font-semibold">{friend.username}</span>
-                  <span className="text-gray-400 text-sm font-mono ml-3">{friend.connectCode}</span>
                 </div>
                 <button
                   onClick={() => removeFriend.mutate(friend.id)}

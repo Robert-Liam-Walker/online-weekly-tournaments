@@ -7,7 +7,23 @@ import "dotenv/config"; // load apps/api/.env when run standalone (run from apps
 // seeded demo tournaments. The happy parse path needs a real .slp and is
 // covered separately by the decideVerification unit tests.
 
+import { createHmac } from "crypto";
+import { prisma } from "../src/lib/prisma";
+
 const BASE = "http://127.0.0.1:3001";
+
+// Dev-only HS256 JWT mint (same shape @fastify/jwt produces) — replaces the
+// removed /auth/game-login dependency; see mint-dev-token.ts.
+function mintToken(userId: string): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error("JWT_SECRET missing from apps/api/.env");
+  const b64url = (input: string) => Buffer.from(input).toString("base64url");
+  const now = Math.floor(Date.now() / 1000);
+  const header = b64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+  const body = b64url(JSON.stringify({ id: userId, iat: now, exp: now + 86400 }));
+  const sig = createHmac("sha256", secret).update(`${header}.${body}`).digest("base64url");
+  return `${header}.${body}.${sig}`;
+}
 
 interface TournamentSummary {
   id: string;
@@ -16,7 +32,7 @@ interface TournamentSummary {
 }
 
 interface TournamentDetail {
-  entries: Array<{ user: { id: string; username: string; connectCode: string } }>;
+  entries: Array<{ user: { id: string; username: string } }>;
   matches: Array<{ matchKey: string; player1Id: string | null; player2Id: string | null }>;
 }
 
@@ -30,15 +46,10 @@ function check(name: string, cond: boolean, detail?: unknown) {
   }
 }
 
-async function gameLogin(connectCode: string): Promise<{ token: string; userId: string }> {
-  const res = await fetch(`${BASE}/api/auth/game-login`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ connectCode }),
-  });
-  if (!res.ok) throw new Error(`game-login ${connectCode} failed: ${res.status}`);
-  const body = (await res.json()) as { token: string; user: { id: string } };
-  return { token: body.token, userId: body.user.id };
+async function loginAs(username: string): Promise<{ token: string; userId: string }> {
+  const user = await prisma.user.findFirst({ where: { username } });
+  if (!user) throw new Error(`user ${username} missing - run the seeds first`);
+  return { token: mintToken(user.id), userId: user.id };
 }
 
 function emptyForm(): FormData {
@@ -91,12 +102,12 @@ async function main() {
   // --- locate a seeded demo tournament with a fully-decided match ---------
   const tournaments = (await (await fetch(`${BASE}/api/tournaments`)).json()) as TournamentSummary[];
   const preferred = ["Sweet Sixteen Demo", "Live Bracket Demo"];
-  const wede = await gameLogin("WEDE#971");
+  const wede = await loginAs(process.env.SEED_USERNAME ?? "robert");
 
   let tournamentId: string | null = null;
   let tournamentName = "";
   let match: TournamentDetail["matches"][number] | null = null;
-  let codeOf = new Map<string, string>();
+  let nameOf = new Map<string, string>();
 
   for (const name of preferred) {
     const t = tournaments.find((x) => x.name === name);
@@ -106,7 +117,7 @@ async function main() {
         headers: { authorization: `Bearer ${wede.token}` },
       })
     ).json()) as TournamentDetail;
-    codeOf = new Map(detail.entries.map((e) => [e.user.id, e.user.connectCode]));
+    nameOf = new Map(detail.entries.map((e) => [e.user.id, e.user.username]));
     // For the 403 path the uploader (WEDE) must not be in the match.
     const candidate = detail.matches.find(
       (m) =>
@@ -125,12 +136,12 @@ async function main() {
   if (!tournamentId || !match) {
     throw new Error("No seeded demo tournament with a decided match found — reseed dev events");
   }
-  const participantCode = codeOf.get(match.player1Id!);
-  if (!participantCode) throw new Error("Could not map match player1 to a connect code");
-  const participant = await gameLogin(participantCode);
+  const participantName = nameOf.get(match.player1Id!);
+  if (!participantName) throw new Error("Could not map match player1 to a username");
+  const participant = await loginAs(participantName);
 
   console.log(`Using "${tournamentName}" (${tournamentId}), match ${match.matchKey},`);
-  console.log(`  non-participant WEDE#971, participant ${participantCode}\n`);
+  console.log(`  non-participant robert, participant ${participantName}\n`);
 
   const listUrl = `${BASE}/api/replays/${tournamentId}/matches/${encodeURIComponent(
     match.matchKey

@@ -4,12 +4,12 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 const players = [
-  { username: "Mango",      email: "mango@test.com",    connectCode: "MANG#001", note: "Fox/Falco, serious matches only" },
-  { username: "Armada",     email: "armada@test.com",   connectCode: "ARMD#002", note: "Peach main, Bo5 preferred" },
-  { username: "Hungrybox",  email: "hbox@test.com",     connectCode: "HBOX#003", note: "Jigglypuff, will counterpick" },
-  { username: "Leffen",     email: "leffen@test.com",   connectCode: "LEFF#004", note: null },
-  { username: "PPMD",       email: "ppmd@test.com",     connectCode: "PPMD#005", note: "Falco/Marth, friendly games" },
-  { username: "Westballz",  email: "west@test.com",     connectCode: "WEST#006", note: "Tech skill practice welcome" },
+  { username: "Mango",      email: "mango@test.com",  note: "Fox/Falco, serious matches only" },
+  { username: "Armada",     email: "armada@test.com", note: "Peach main, Bo5 preferred" },
+  { username: "Hungrybox",  email: "hbox@test.com",   note: "Jigglypuff, will counterpick" },
+  { username: "Leffen",     email: "leffen@test.com", note: null },
+  { username: "PPMD",       email: "ppmd@test.com",   note: "Falco/Marth, friendly games" },
+  { username: "Westballz",  email: "west@test.com",   note: "Tech skill practice welcome" },
 ];
 
 async function main() {
@@ -23,7 +23,6 @@ async function main() {
         username: p.username,
         email: p.email,
         passwordHash: hash,
-        connectCode: p.connectCode,
         subscriptionStatus: "ACTIVE",
       },
     });
@@ -38,7 +37,7 @@ async function main() {
       },
     });
 
-    console.log(`Seeded ${p.username} (${p.connectCode})`);
+    console.log(`Seeded ${p.username}`);
   }
 }
 

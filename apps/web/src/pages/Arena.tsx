@@ -3,7 +3,6 @@ import { useArena } from "../hooks/useArena";
 import { useAuthStore } from "../hooks/useAuth";
 import { ArenaEntry, Format } from "../types";
 import { api } from "../lib/api";
-import RankBadge from "../components/RankBadge";
 
 export default function Arena() {
   const { entries, isLoading, joinArena, leaveArena } = useArena();
@@ -118,10 +117,6 @@ export default function Arena() {
               <div>
                 <div className="flex items-center gap-3">
                   <span className="text-white font-semibold">{entry.user.username}</span>
-                  <span className="text-gray-400 text-sm font-mono">
-                    {entry.user.connectCode}
-                  </span>
-                  <RankBadge connectCode={entry.user.connectCode} />
                   <span
                     className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                       entry.format === "BO5"

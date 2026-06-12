@@ -12,28 +12,29 @@ export type ReplayVerificationStatus =
   | "MANUAL_REVIEW";
 
 // Pure verification decision (vitest-covered, tests/decideVerification.test.ts):
-// map the parsed winner's connect code onto the match's two players, then
-// compare against the recorded result.
+// map the parsed winner's in-game player name onto the match's two entrants'
+// usernames (case-insensitively), then compare against the recorded result.
+// Verification only confirms/mismatches/flags — it never decides winners.
 //
-//   parsed winner code maps to neither player (or is null) → MANUAL_REVIEW
-//   maps to a player, match has no recorded winner yet      → PENDING
+//   parsed winner name maps to neither entrant (or is null) → MANUAL_REVIEW
+//   maps to an entrant, match has no recorded winner yet     → PENDING
 //   maps to the recorded winner                              → VERIFIED
-//   maps to the other player                                 → MISMATCH
+//   maps to the other entrant                                → MISMATCH
 export function decideVerification(
-  parsedWinnerCode: string | null,
-  p1Code: string | null,
-  p2Code: string | null,
+  parsedWinnerName: string | null,
+  p1Username: string | null,
+  p2Username: string | null,
   p1Id: string,
   p2Id: string,
   recordedWinnerId: string | null
 ): ReplayVerificationStatus {
-  const norm = (code: string | null) => code?.toUpperCase() ?? null;
-  const winnerCode = norm(parsedWinnerCode);
+  const norm = (name: string | null) => name?.toUpperCase() ?? null;
+  const winnerName = norm(parsedWinnerName);
 
   const parsedWinnerId =
-    winnerCode !== null && winnerCode === norm(p1Code)
+    winnerName !== null && winnerName === norm(p1Username)
       ? p1Id
-      : winnerCode !== null && winnerCode === norm(p2Code)
+      : winnerName !== null && winnerName === norm(p2Username)
       ? p2Id
       : null;
 
@@ -87,19 +88,19 @@ export async function replayRoutes(app: FastifyInstance) {
       }
 
       const [p1, p2] = await Promise.all([
-        prisma.user.findUnique({ where: { id: player1Id }, select: { connectCode: true } }),
-        prisma.user.findUnique({ where: { id: player2Id }, select: { connectCode: true } }),
+        prisma.user.findUnique({ where: { id: player1Id }, select: { username: true } }),
+        prisma.user.findUnique({ where: { id: player2Id }, select: { username: true } }),
       ]);
 
       // ParsedReplay.winner is the winning player's port; map it to that
-      // player's connect code (null when no winner could be determined).
-      const parsedWinnerCode =
-        parsed.players.find((p) => p.port === parsed.winner)?.connectCode ?? null;
+      // player's in-game name (null when no winner could be determined).
+      const parsedWinnerName =
+        parsed.players.find((p) => p.port === parsed.winner)?.playerName ?? null;
 
       const verification = decideVerification(
-        parsedWinnerCode,
-        p1?.connectCode ?? null,
-        p2?.connectCode ?? null,
+        parsedWinnerName,
+        p1?.username ?? null,
+        p2?.username ?? null,
         player1Id,
         player2Id,
         match.winnerId
@@ -116,7 +117,7 @@ export async function replayRoutes(app: FastifyInstance) {
           storagePath: stored.storagePath,
           stage: parsed.stage,
           durationFrames: parsed.durationFrames,
-          parsedWinnerCode,
+          parsedWinnerName,
           verification,
         },
       });
