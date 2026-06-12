@@ -5,7 +5,7 @@
 import PublicFooter from "../components/PublicFooter";
 
 const INSTALLER_URL =
-  "https://github.com/Robert-Liam-Walker/randalls-launcher/releases/latest/download/Randalls-Nightly-Tournaments-Setup-0.1.0.exe";
+  "https://github.com/Robert-Liam-Walker/randalls-launcher/releases/latest/download/Randalls-Nightly-Tournaments-Setup-0.2.0.exe";
 const RELEASES_URL = "https://github.com/Robert-Liam-Walker/randalls-launcher/releases/latest";
 
 const STEPS: Array<{ title: string; body: string }> = [
