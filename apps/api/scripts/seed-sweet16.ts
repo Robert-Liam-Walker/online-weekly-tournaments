@@ -1,3 +1,4 @@
+import "dotenv/config"; // load apps/api/.env when run standalone (run from apps/api/)
 // Dev: a 16-player ACTIVE tournament with recognizable fake names so the
 // in-game bracket layout can be eyeballed at full density. Idempotent-ish.
 import { prisma } from "../src/lib/prisma";

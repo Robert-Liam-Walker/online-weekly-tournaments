@@ -255,7 +255,7 @@ export async function tournamentRoutes(app: FastifyInstance) {
     if (!tournament) return reply.code(404).send({ error: "Tournament not found" });
     markPresent(id, userId).catch(() => {});
     if (tournament.status !== "ACTIVE") return { matches: [] };
-    return { matches: await getReadyTournamentMatches(id) };
+    return { matches: await getReadyTournamentMatches(id, userId) };
   });
 
   // POST /api/tournaments/:id/matches/:matchKey/report — record a result.

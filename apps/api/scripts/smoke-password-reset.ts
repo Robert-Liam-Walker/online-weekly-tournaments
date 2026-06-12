@@ -1,3 +1,4 @@
+import "dotenv/config"; // load apps/api/.env when run standalone (run from apps/api/)
 // Password-reset smoke test, run directly against the dev database
 // (same pattern as scripts/smoke-integrity.ts — drives the route handlers'
 // service logic, no HTTP server needed):

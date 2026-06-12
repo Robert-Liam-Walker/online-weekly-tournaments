@@ -1,3 +1,4 @@
+import "dotenv/config"; // load apps/api/.env when run standalone (run from apps/api/)
 // Seeds a 32-entrant ACTIVE demo tournament so the in-game bracket UI can
 // be eyeballed at full capacity (the 32-cap release gate). Same direct-DB
 // pattern as smoke-integrity.ts:

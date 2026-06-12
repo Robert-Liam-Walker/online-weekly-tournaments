@@ -24,6 +24,9 @@ import { launcherRoutes } from "./routes/launcher";
 import { stripeWebhookRoute } from "./routes/webhooks";
 import { registerSocketHandlers } from "./plugins/socket";
 import { startTournamentScheduler } from "./lib/scheduleTournaments";
+import { startUdpRegistrar } from "./udpRegistrar";
+
+let udpRegistrar: ReturnType<typeof startUdpRegistrar> | undefined;
 
 const app = Fastify({
   logger: {
@@ -169,6 +172,14 @@ async function main() {
   registerSocketHandlers(io);
   startTournamentScheduler();
 
+  // Match-rendezvous UDP registrar — opt-in: only binds when the port is
+  // explicitly configured, so dev/test runs never grab a UDP socket or
+  // collide across parallel suites.
+  const rdvPort = Number(process.env.RENDEZVOUS_UDP_PORT);
+  if (Number.isInteger(rdvPort) && rdvPort > 0) {
+    udpRegistrar = startUdpRegistrar(rdvPort, app.log);
+  }
+
   const port = Number(process.env.PORT ?? 3001);
   await app.listen({ port, host: "0.0.0.0" });
 
@@ -182,6 +193,7 @@ main().catch((err) => {
 
 process.on("SIGTERM", async () => {
   try {
+    udpRegistrar?.close();
     // Stop accepting new connections and drain in-flight requests first.
     await app.close();
     // app.close() already shut the shared HTTP server; io.close() is safe on

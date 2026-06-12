@@ -1,3 +1,4 @@
+import "dotenv/config"; // load apps/api/.env when run standalone (run from apps/api/)
 // Seeds PRODUCTION (or any deployed env) with web-testing demo data, purely
 // through the public HTTP API — prod RDS is VPC-locked, so unlike
 // seed-32-demo.ts this never touches Prisma:

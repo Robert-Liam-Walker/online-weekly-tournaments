@@ -1,3 +1,4 @@
+import "dotenv/config"; // load apps/api/.env when run standalone (run from apps/api/)
 // End-to-end smoke test for the tournament replay-attachment routes, run
 // against the live dev API (does not touch the DB directly):
 //   npx -w apps/api tsx scripts/smoke-replay.ts

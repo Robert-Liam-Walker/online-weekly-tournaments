@@ -1,3 +1,4 @@
+import "dotenv/config"; // load apps/api/.env when run standalone (run from apps/api/)
 // Smoke test for push-based tournament updates over Socket.io:
 //   npx -w apps/api tsx scripts/smoke-socket.ts
 // Requires the dev API running (HTTP + Socket.io share port 3001).

@@ -1,3 +1,4 @@
+import "dotenv/config"; // load apps/api/.env when run standalone (run from apps/api/)
 // End-to-end smoke for the device link flow, against the running API:
 //   npx -w apps/api tsx scripts/smoke-device-link.ts
 const BASE = "http://127.0.0.1:3001/api";

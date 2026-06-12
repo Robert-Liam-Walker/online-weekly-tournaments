@@ -1,3 +1,4 @@
+import "dotenv/config"; // load apps/api/.env when run standalone (run from apps/api/)
 // Dev seeding: Robert's account (Slippi connect code) + near-term test
 // events so the in-game browser has data. Idempotent.
 import { prisma } from "../src/lib/prisma";
