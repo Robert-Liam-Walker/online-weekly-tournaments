@@ -5,7 +5,8 @@ export type TournamentUpdateKind =
   | "checkin" // someone checked in
   | "started" // bracket generated (manual or scheduler auto-start)
   | "result" // a match result was reported
-  | "completed"; // final result reported, tournament over
+  | "completed" // final result reported, tournament over
+  | "canceled"; // TO canceled an upcoming/registration event
 
 /**
  * Broadcast a tournament state change to all connected web clients.

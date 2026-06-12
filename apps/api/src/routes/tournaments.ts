@@ -173,11 +173,31 @@ export async function tournamentRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "Paid events are not available yet" });
     }
 
+    // Registration opens immediately — the schema default (UPCOMING) has no
+    // promotion path, so an admin-created event would otherwise be stuck
+    // un-registerable forever (the scheduler sets this explicitly too).
     const tournament = await prisma.tournament.create({
-      data: { ...body.data, scheduledAt: new Date(body.data.scheduledAt) },
+      data: { ...body.data, scheduledAt: new Date(body.data.scheduledAt), status: "REGISTRATION" },
     });
 
     return reply.code(201).send(tournament);
+  });
+
+  // POST /api/tournaments/:id/cancel — TO action. Only events that haven't
+  // produced results can be canceled; started/finished brackets are immutable.
+  app.post("/:id/cancel", { preHandler: [requireAdmin] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const tournament = await prisma.tournament.findUnique({ where: { id } });
+    if (!tournament) return reply.code(404).send({ error: "Tournament not found" });
+    if (tournament.status !== "UPCOMING" && tournament.status !== "REGISTRATION") {
+      return reply.code(409).send({ error: "Only upcoming/registration tournaments can be canceled" });
+    }
+    const updated = await prisma.tournament.update({
+      where: { id },
+      data: { status: "CANCELED" },
+    });
+    emitTournamentUpdate(id, "canceled");
+    return { tournament: updated };
   });
 
   // POST /api/tournaments/:id/checkin — opens 30 min before scheduledAt
