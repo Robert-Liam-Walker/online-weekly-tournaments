@@ -52,7 +52,9 @@ function Nav() {
             <RankBadge connectCode={user.connectCode} />
           </span>
         )}
-        <NavLink to="/subscribe" className={linkClass}>Subscribe</NavLink>
+        {/* Free-only release: Stripe dormant. The /subscribe route stays
+            reachable by URL (shows a coming-soon note) but is hidden from
+            the nav until the $5/mo subscription (step 2) ships. */}
         <NavLink to="/settings" className={linkClass}>Settings</NavLink>
         {user && (
           <button

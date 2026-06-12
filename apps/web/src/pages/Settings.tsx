@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuthStore } from "../hooks/useAuth";
 import {
@@ -171,17 +170,12 @@ export default function Settings() {
             </button>
           </div>
         ) : (
-          <div>
-            <p className="text-gray-400 text-sm mb-4">
-              Subscribe to unlock the arena, challenges, tournaments, and friends.
-            </p>
-            <Link
-              to="/subscribe"
-              className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-lg transition-colors"
-            >
-              Subscribe — $5/month
-            </Link>
-          </div>
+          // Free-only release: Stripe dormant, no upgrade CTA. The $5/mo
+          // subscription (ranked mode + more) ships as step 2.
+          <p className="text-gray-400 text-sm">
+            Subscriptions are coming soon. Nightly tournaments are free for
+            everyone while we launch.
+          </p>
         )}
       </div>
     </div>

@@ -6,6 +6,10 @@ machinery (engine, registration/check-in, auto-report, no-show DQ, replay
 verification, admin tools) is the foundation — this plan is mostly economy,
 scheduling, and match-flow upgrades on top of it.
 
+**Revised later the same day (2026-06-11): the release is FREE-only with
+Stripe fully dormant** — tokens, pots, payouts, and subscriptions all move
+to the paid phases. See the Decisions log for what superseded what.
+
 ## Vision
 
 Nightly bracket tournaments, every region, every night at 8pm local.
@@ -17,19 +21,27 @@ is just how you play. The Slippi-side logic stays as thin as possible.
 **Name:** Randall's Nightly Tournaments (Randall: the Pokémon Stadium cloud
 — Melee-native, memorable).
 
+**Domain:** randallsnightly.com (registered 2026-06-11).
+
+*(The token-buying flow above is the eventual paid product; the launch
+release itself is free-only — see Revenue model.)*
+
 ## Product spec
 
-### Series grid: 9 nightly series
+### Nightly grid (REVISED 2026-06-11): 3 free events per night
 
-3 regions × 3 tiers, every night at **8pm region-local**:
+3 regions × 1 free event, every night at **20:00 region-local**, named
+like `Randalls Nightly — EU — Jun 13`:
 
-| | Free | Small buy-in | Large buy-in |
-|---|---|---|---|
-| **East** (America/New_York) | 8pm ET | 8pm ET | 8pm ET |
-| **Central** (America/Chicago) | 8pm CT | 8pm CT | 8pm CT |
-| **West** (America/Los_Angeles) | 8pm PT | 8pm PT | 8pm PT |
+| Region | IANA timezone | Start |
+|---|---|---|
+| **EU** (CET anchor) | Europe/Berlin | 8pm local |
+| **NA East** | America/New_York | 8pm local |
+| **NA West** | America/Los_Angeles | 8pm local |
 
-(Region set v1 = US-only; the model must make adding regions trivial.)
+US **Central is dropped**; EU is in from day one. The earlier
+3-US-regions × 3-tiers = 9-series grid is deferred with the buy-in tiers
+(see Revenue model); the model must still make adding regions trivial.
 
 **Timezone display rule:** an event always shows its REGION time ("8pm
 Eastern") plus the viewer's local time ("7pm your time" for a Central
@@ -37,7 +49,11 @@ player viewing an East event). In-game: derive viewer-local from the PC
 clock; web: from the browser. Events are stored as UTC instants (already
 the convention since the scheduler UTC fix).
 
-### Tokens
+### Tokens (DEFERRED — wholly in the paid phases)
+
+Tokens, pots, and payouts move **entirely** to the paid phases. The free
+release has no balances, no prize pools, no payouts — bragging rights
+only. Original design kept below for when paid lands:
 
 - Purchased on the **website** via Stripe Checkout (the only place money
   enters). One purchase → token balance on the account.
@@ -63,29 +79,25 @@ the convention since the scheduler UTC fix).
    champion. Tokens credited per the payout table; balance updates.
 7. Website shows the pretty bracket + results anytime.
 
-### Revenue model (LOCKED 2026-06-11): subscriptions gate tier access
+### Revenue model (REVISED 2026-06-11 — supersedes the tiered model)
 
-- **$5/mo** — access to the free-tier (no prize pool) nightly tournaments
-- **$10/mo** — adds access to small-pot series
-- **$20/mo** — adds access to large-pot series
+**Release: FREE. Stripe fully dormant.** No subscriptions, no tokens, no
+pots at launch — the nightly regionals are the free on-ramp (which also
+resolves the earlier funnel concern).
 
-Platform revenue = subscriptions. Prize pools come from token entries and
-pay out **100%**: 1st 70% (5.6E) · 2nd 17.5% (1.4E) · 3rd 12.5% (1.0E)
-on an 8-player pool — "we never touch the pot."
+**Step 2 (post-release):** **$5/mo subscription** unlocking ranked-mode
+and other member benefits. The repo's dormant Stripe subscription
+infrastructure (User.subscriptionStatus, subscription routes + webhooks,
+STRIPE_PRICE_ID) is the foundation when this lands.
 
-The repo's dormant Stripe subscription infrastructure (User.subscription
-Status, subscription routes + webhooks, STRIPE_PRICE_ID) is the
-foundation — extend from one price to three tier prices and gate
-registration by tier ⊆ subscription level.
+**Later paid phases:** the token/pot economy ($10/$20 tiers, 70/17.5/12.5
+pool payouts, Stripe Connect cash-out) as previously designed — all
+behind the compliance workstream.
 
-**Funnel note (flagged, not relitigated):** with $5/mo gating even the
-no-prize tier, the Reddit on-ramp has no free taste of the product.
-Consider a free trial period or "first night free" promo as an
-acquisition lever — decision deferred to launch marketing.
-
-**Bracket size (LOCKED): 8 fixed, all tiers.** Overflow signups spill
-into parallel 8-player brackets per series (multi-bracket-per-event was
-in the v1 product spec; engine handles it).
+**Bracket size (REVISED): single double-elim, cap 32** (engine tested to
+32; byes handle short fields). Parallel 8-player brackets are deferred to
+the paid phases. Gated on Robert's in-game eyeball of the seeded 32-man
+bracket (the per-column Text limit must be visually verified).
 
 ## Architecture
 
@@ -199,18 +211,27 @@ replay upload/verification · admin/TO tools (DQ/override/reviews) ·
 device-link auth · launcher + manifest pipeline · AWS staging + CI/CD ·
 in-game event browser/lobby/bracket view.
 
-## Decisions log (2026-06-11)
+## Decisions log
 
-1. **Revenue = subscriptions** ($5 free-tier access / $10 small / $20
-   large); pools pay out 100% (70/17.5/12.5). — LOCKED
+**Afternoon 2026-06-11 (superseded same day where noted):**
+1. ~~Revenue = $5/$10/$20 subscription tiers~~ → SUPERSEDED by 5.
 2. **CI/CD = GitHub Actions** (CodePipeline rejected). — LOCKED
-3. **Cash-out ships WITH the first paid release** (compliance fronts P4).
-   — LOCKED
-4. **Brackets = 8 fixed, all tiers**; overflow → parallel brackets. —
-   LOCKED
+3. **Cash-out ships WITH the first paid release** (compliance fronts the
+   paid phase). — LOCKED (applies when paid lands)
+4. ~~Brackets = 8 fixed + parallel overflow~~ → SUPERSEDED by 6.
+
+**Evening 2026-06-11 (current):**
+5. **Release = FREE-only, Stripe fully dormant.** Step 2 = $5/mo
+   subscription for ranked-mode + member benefits. Tokens/pots/cash-out
+   move wholly to later paid phases. — LOCKED
+6. **Single 32-cap double-elim bracket** at release; parallel 8s
+   deferred. Gated on the in-game 32-man UI eyeball. — LOCKED
+7. **Regions v1 = EU (Europe/Berlin) / NA East / NA West at 20:00
+   region-local** (US Central dropped). — LOCKED
+8. **Domain = randallsnightly.com.** — LOCKED (registration pending
+   Robert's registrant contact details)
 
 ## Still open
 
-- Region set v1: the 3 US regions only? (plan assumes yes)
-- Free-trial / first-night-free on the $5 tier (funnel lever — decide at
-  launch marketing)
+- Free-trial framing for the step-2 $5 subscription (decide at that
+  launch's marketing pass)

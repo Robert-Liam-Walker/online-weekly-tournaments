@@ -86,12 +86,12 @@ export default function Arena() {
           </button>
         </div>
       ) : (
+        // Free-only release: the arena stays subscription-gated server-side,
+        // but we don't advertise checkout while Stripe is dormant.
         <div className="bg-yellow-900/40 border border-yellow-700 rounded-lg p-4 mb-6">
           <p className="text-yellow-300">
-            Subscribe for $5/month to join the arena and challenge players.{" "}
-            <a href="/subscribe" className="underline hover:text-yellow-200">
-              Subscribe now
-            </a>
+            Arena challenges unlock with the upcoming subscription — coming soon. Nightly
+            tournaments are free for everyone in the meantime.
           </p>
         </div>
       )}
