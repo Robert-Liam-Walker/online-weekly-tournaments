@@ -85,7 +85,7 @@ export async function requestPasswordReset(email: string): Promise<void> {
   ]);
 
   const webUrl = process.env.WEB_URL ?? "http://localhost:5173";
-  await sendPasswordResetEmail(user.email, `${webUrl}/reset-password?token=${raw}`);
+  await sendPasswordResetEmail(user.email, `${webUrl}/reset-password?token=${raw}`, user.username);
 }
 
 /**
@@ -243,7 +243,7 @@ export async function authRoutes(app: FastifyInstance) {
     if (!user) {
       return reply
         .code(404)
-        .send({ error: "No FoxTrot account with this connect code — sign up on the web first" });
+        .send({ error: "No Randall's Nightly Tournaments account with this connect code — sign up on the web first" });
     }
 
     const token = app.jwt.sign({ id: user.id }, { expiresIn: "7d" });
