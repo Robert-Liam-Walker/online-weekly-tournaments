@@ -134,6 +134,10 @@ model Tournament {
   maxEntrants  Int               @default(64)
   entryFee     Int               @default(0)
   prizePool    Int               @default(0)
+  // Nullable: legacy/manually-created events have no region. Nightly
+  // regionals set it; the (region, scheduledAt) pair is the scheduler's
+  // idempotency key (see lib/scheduleTournaments.ts).
+  region       Region?
   createdAt    DateTime          @default(now())
   entries      TournamentEntry[]
   matches      TournamentMatch[]
@@ -252,6 +256,14 @@ enum ChallengeStatus {
 enum BracketFormat {
   SINGLE_ELIM
   DOUBLE_ELIM
+}
+
+// Nightly-regional home region. Display names + IANA timezones live in
+// apps/api/src/lib/regions.ts (single source of truth for tz math).
+enum Region {
+  EU
+  NA_EAST
+  NA_WEST
 }
 
 enum TournamentStatus {
