@@ -12,8 +12,8 @@ export async function seriesRoutes(app: FastifyInstance) {
     const series = await prisma.series.findUnique({
       where: { id },
       include: {
-        player1: { select: { id: true, username: true, connectCode: true } },
-        player2: { select: { id: true, username: true, connectCode: true } },
+        player1: { select: { id: true, username: true } },
+        player2: { select: { id: true, username: true } },
         games: true,
       },
     });
@@ -118,46 +118,46 @@ export async function seriesRoutes(app: FastifyInstance) {
 
       const parsed = parseReplayBuffer(buffer);
 
-      // Verify connect codes match participants
+      // Verify in-game player names match participants' usernames
       const p1 = await prisma.user.findUnique({
         where: { id: series.player1Id },
-        select: { connectCode: true },
+        select: { username: true },
       });
       const p2 = await prisma.user.findUnique({
         where: { id: series.player2Id },
-        select: { connectCode: true },
+        select: { username: true },
       });
 
-      const replayCodes = parsed.players.map((p) => p.connectCode?.toUpperCase());
+      const replayNames = parsed.players.map((p) => p.playerName?.toUpperCase());
       const matchesBothPlayers =
-        replayCodes.includes(p1?.connectCode?.toUpperCase() ?? "") &&
-        replayCodes.includes(p2?.connectCode?.toUpperCase() ?? "");
+        replayNames.includes(p1?.username?.toUpperCase() ?? "") &&
+        replayNames.includes(p2?.username?.toUpperCase() ?? "");
 
       if (!matchesBothPlayers) {
         return reply
           .code(422)
-          .send({ error: "Replay connect codes do not match series participants" });
+          .send({ error: "Replay player names do not match series participants" });
       }
 
-      // Map winner port → connect code → player id
+      // Map winner port → player name → player id
       const winnerPort = parsed.winner;
-      const winnerCode = parsed.players
+      const winnerName = parsed.players
         .find((p) => p.port === winnerPort)
-        ?.connectCode?.toUpperCase();
+        ?.playerName?.toUpperCase();
 
-      if (!winnerCode) {
+      if (!winnerName) {
         return reply.code(422).send({ error: "Could not determine winner from replay" });
       }
 
       const winnerId =
-        winnerCode === p1?.connectCode?.toUpperCase()
+        winnerName === p1?.username?.toUpperCase()
           ? series.player1Id
-          : winnerCode === p2?.connectCode?.toUpperCase()
+          : winnerName === p2?.username?.toUpperCase()
           ? series.player2Id
           : null;
 
       if (!winnerId) {
-        return reply.code(422).send({ error: "Winner connect code does not match either player" });
+        return reply.code(422).send({ error: "Winner player name does not match either player" });
       }
 
       // Record game result (same logic as PATCH /:id/score)
@@ -175,8 +175,8 @@ export async function seriesRoutes(app: FastifyInstance) {
               seriesId: series.id,
               gameNumber,
               winnerId,
-              p1Character: parsed.players.find((p) => p.connectCode?.toUpperCase() === p1?.connectCode?.toUpperCase())?.characterId ?? undefined,
-              p2Character: parsed.players.find((p) => p.connectCode?.toUpperCase() === p2?.connectCode?.toUpperCase())?.characterId ?? undefined,
+              p1Character: parsed.players.find((p) => p.playerName?.toUpperCase() === p1?.username?.toUpperCase())?.characterId ?? undefined,
+              p2Character: parsed.players.find((p) => p.playerName?.toUpperCase() === p2?.username?.toUpperCase())?.characterId ?? undefined,
               stageId: parsed.stage ?? undefined,
               duration: parsed.durationFrames ?? undefined,
             },

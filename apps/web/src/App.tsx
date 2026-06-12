@@ -19,8 +19,7 @@ import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import RequireAuth from "./components/RequireAuth";
 import ChallengeNotification from "./components/ChallengeNotification";
-import FoxIcon from "./components/FoxIcon";
-import RankBadge from "./components/RankBadge";
+import RandallIcon from "./components/RandallIcon";
 import { useAuthStore } from "./hooks/useAuth";
 
 const queryClient = new QueryClient({
@@ -40,7 +39,7 @@ function Nav() {
 
   return (
     <nav className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center gap-2">
-      <FoxIcon size={22} />
+      <RandallIcon size={22} />
       <span className="text-white font-bold text-lg mr-4 ml-1.5">Randall's Nightly Tournaments</span>
       <NavLink to="/arena" className={linkClass}>Arena</NavLink>
       <NavLink to="/tournaments" className={linkClass}>Tournaments</NavLink>
@@ -52,10 +51,7 @@ function Nav() {
       )}
       <div className="ml-auto flex items-center gap-3">
         {user && (
-          <span className="flex items-center gap-2">
-            <span className="text-gray-400 text-sm font-mono">{user.connectCode}</span>
-            <RankBadge connectCode={user.connectCode} />
-          </span>
+          <span className="text-gray-400 text-sm font-medium">{user.username}</span>
         )}
         {/* Free-only release: Stripe dormant. The /subscribe route stays
             reachable by URL (shows a coming-soon note) but is hidden from

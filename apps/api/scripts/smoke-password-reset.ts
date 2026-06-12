@@ -84,7 +84,6 @@ async function main() {
       username: TAG,
       email: EMAIL,
       passwordHash: await bcrypt.hash(OLD_PASSWORD, 12),
-      connectCode: "SMPW#421",
     },
   });
 

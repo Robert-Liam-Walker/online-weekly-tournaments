@@ -15,7 +15,6 @@ export interface User {
   id: string;
   username: string;
   email: string;
-  connectCode: string;
   subscriptionStatus: SubscriptionStatus;
   subscriptionEndsAt?: string;
   // Added by /auth/me; may be absent from older payloads — treat missing as USER.
@@ -25,7 +24,7 @@ export interface User {
 export interface ArenaEntry {
   id: string;
   userId: string;
-  user: Pick<User, "id" | "username" | "connectCode">;
+  user: Pick<User, "id" | "username">;
   format: Format;
   note?: string;
   createdAt: string;
@@ -35,8 +34,8 @@ export interface Challenge {
   id: string;
   challengerId: string;
   challengedId: string;
-  challenger: Pick<User, "id" | "username" | "connectCode">;
-  challenged: Pick<User, "id" | "username" | "connectCode">;
+  challenger: Pick<User, "id" | "username">;
+  challenged: Pick<User, "id" | "username">;
   format: Format;
   status: ChallengeStatus;
   seriesId?: string;
@@ -47,8 +46,8 @@ export interface Series {
   id: string;
   player1Id: string;
   player2Id: string;
-  player1: Pick<User, "id" | "username" | "connectCode">;
-  player2: Pick<User, "id" | "username" | "connectCode">;
+  player1: Pick<User, "id" | "username">;
+  player2: Pick<User, "id" | "username">;
   format: Format;
   p1Wins: number;
   p2Wins: number;
@@ -86,7 +85,7 @@ export interface TournamentEntryDetail {
   checkedInAt: string | null;
   dqAt?: string | null;
   placement: number | null;
-  user: { id: string; username: string; connectCode: string };
+  user: { id: string; username: string };
 }
 
 export interface TournamentMatchDetail {
@@ -113,7 +112,7 @@ export interface TournamentReplay {
   fileName: string;
   stage: number | null;
   durationFrames: number | null;
-  parsedWinnerCode: string | null;
+  parsedWinnerName: string | null;
   verification: ReplayVerification;
   resolvedAt: string | null;
   resolvedById: string | null;

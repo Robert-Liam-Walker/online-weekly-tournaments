@@ -24,7 +24,7 @@ export async function arenaRoutes(app: FastifyInstance) {
       where: { userId: { in: activeIds } },
       include: {
         user: {
-          select: { id: true, username: true, connectCode: true, subscriptionStatus: true },
+          select: { id: true, username: true, subscriptionStatus: true },
         },
       },
       orderBy: { createdAt: "asc" },
@@ -48,7 +48,7 @@ export async function arenaRoutes(app: FastifyInstance) {
         create: { userId, ...body.data },
         update: body.data,
         include: {
-          user: { select: { id: true, username: true, connectCode: true } },
+          user: { select: { id: true, username: true } },
         },
       });
 

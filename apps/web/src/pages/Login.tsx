@@ -24,7 +24,6 @@ export default function Login() {
               email: form.get("email"),
               password: form.get("password"),
               username: form.get("username"),
-              connectCode: (form.get("connectCode") as string)?.toUpperCase(),
             };
 
       const { data } = await api.post(`/auth/${tab}`, payload);
@@ -71,10 +70,14 @@ export default function Login() {
                   type="text"
                   required
                   minLength={3}
-                  maxLength={30}
+                  maxLength={15}
+                  pattern="[A-Za-z0-9]{3,15}"
                   className="w-full bg-gray-800 text-white rounded-lg px-4 py-2.5 border border-gray-700 focus:border-blue-500 focus:outline-none"
                   placeholder="ssbmplayer"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  3-15 letters or numbers - shown in-game and on brackets
+                </p>
               </div>
             )}
 
@@ -110,24 +113,6 @@ export default function Login() {
                 </div>
               )}
             </div>
-
-            {tab === "register" && (
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">
-                  Slippi Connect Code
-                </label>
-                <input
-                  name="connectCode"
-                  type="text"
-                  required
-                  className="w-full bg-gray-800 text-white rounded-lg px-4 py-2.5 border border-gray-700 focus:border-blue-500 focus:outline-none font-mono uppercase"
-                  placeholder="FOXT#123"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Found in Slippi Launcher → Settings. Format: ABCD#123
-                </p>
-              </div>
-            )}
 
             {error && (
               <p className="text-red-400 text-sm bg-red-900/30 rounded-lg px-3 py-2">
