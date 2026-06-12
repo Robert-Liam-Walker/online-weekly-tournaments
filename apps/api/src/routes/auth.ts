@@ -230,38 +230,9 @@ export async function authRoutes(app: FastifyInstance) {
     }
   );
 
-  // Game-client login by username.
-  // DEPRECATED (2026-06-11): the Dolphin client now uses the device-link
-  // flow exclusively; this route remains only for dev smoke scripts and old
-  // builds. Disabled unless GAME_LOGIN_ENABLED=true (default off). Strictly
-  // rate-limited; REMOVE once the release client is confirmed in-game and
-  // the smoke scripts are migrated to device-link.
-  app.post("/game-login", {
-    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
-  }, async (request, reply) => {
-    if (process.env.GAME_LOGIN_ENABLED !== "true") {
-      return reply.code(403).send({ error: "Game login is disabled" });
-    }
-
-    const schema = z.object({ username: z.string().min(3).max(15) });
-    const body = schema.safeParse(request.body);
-    if (!body.success) return reply.code(400).send({ error: body.error.flatten() });
-
-    const user = await prisma.user.findFirst({
-      where: { username: { equals: body.data.username, mode: "insensitive" } },
-    });
-    if (!user) {
-      return reply
-        .code(404)
-        .send({ error: "No Randall's Nightly Tournaments account with this username — sign up on the web first" });
-    }
-
-    const token = app.jwt.sign({ id: user.id }, { expiresIn: "7d" });
-    return {
-      user: { id: user.id, username: user.username },
-      token,
-    };
-  });
+  // /game-login is GONE (Phase 3, 2026-06-12): clients authenticate via
+  // launcher login (writes foxtrot-token.txt) or the in-game device-link
+  // flow; dev tooling mints tokens with scripts/mint-dev-token.ts.
 
   app.get(
     "/me",
