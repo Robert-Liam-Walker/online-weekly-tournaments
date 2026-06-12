@@ -291,8 +291,11 @@ same CloudFront domain — no CORS, no rebuild per environment:
    | `/api/*` | EB | CachingDisabled + AllViewerExceptHostHeader origin-request policy, allow all HTTP methods |
    | `/socket.io/*` | EB | same as above (websockets are supported by CloudFront) |
    | Default `(*)` | S3 web | CachingOptimized |
-5. **SPA fallback**: custom error responses mapping 403 and 404 from the S3
-   origin to `/index.html` with HTTP 200 (client-side routing).
+5. **SPA fallback**: a CloudFront Function on the default behavior's
+   viewer-request rewrites extensionless non-API paths to `/index.html`.
+   (Do NOT use distribution-wide custom error responses for this — they
+   would also rewrite legitimate API 403/404 JSON responses to index.html
+   with HTTP 200, which breaks API clients including the game.)
 6. Route53: `A`/`AAAA` alias `yourdomain.gg` → the distribution.
 7. Optional `api.yourdomain.gg` (direct-to-EB, useful for webhooks/devices):
    either a second CloudFront distribution in front of EB, or — once on an
@@ -306,6 +309,21 @@ Web build-time URLs in this setup:
 - `VITE_SOCKET_URL` — set to `https://yourdomain.gg` once Socket.io is
   consolidated behind `/socket.io/*`; today (dev) it is `http://localhost:3002`.
 - `VITE_STRIPE_PUBLISHABLE_KEY` — the live publishable key.
+
+### Production values (as built, 2026-06-12)
+
+| Thing | Value |
+|---|---|
+| Domain | `randallsnightly.com` (Route53-registered, privacy on, auto-renew; hosted zone `Z03490391XST8MEOGEUVZ`) |
+| ACM cert (us-east-1) | `arn:aws:acm:...:826671498662:certificate/23d2589e-78d7-47a3-a676-24b51fe9856f` — `randallsnightly.com` + `*.randallsnightly.com`, ISSUED |
+| CloudFront distribution | `E2J2AGBK1BOAMP` (`d3kbmthjr8ssji.cloudfront.net`); aliases apex + `www`; HTTP/2+3; PriceClass_100 |
+| SPA rewrite | CloudFront Function `randallsnightly-spa-rewrite` (viewer-request, default behavior only) |
+| S3 web origin | `foxtrot-web-826671498662` via OAC `E3VY7642M14Z6R`; bucket policy is CloudFront-only, public access fully blocked (the old S3 static-website URL is dead — intentional) |
+| EB origin | `foxtrot-api-prod.eba-npsz5ez5.us-east-1.elasticbeanstalk.com`, http-only, behaviors `/api/*`, `/socket.io/*`, `/health` (CachingDisabled + AllViewerExceptHostHeader) |
+| DNS | A/AAAA aliases apex + www → the distribution; ACM validation CNAME; SES DKIM ×3 (verified); `_dmarc` TXT `p=none` |
+| SES | domain identity `randallsnightly.com` VERIFIED; `SES_FROM_EMAIL=no-reply@randallsnightly.com` on EB; production access REQUESTED 2026-06-12 (pending AWS review — sandbox limits recipients until then) |
+| EB env | `WEB_URL=https://randallsnightly.com` set 2026-06-12 |
+| GH Actions vars | `VITE_API_URL=https://randallsnightly.com/api`, `VITE_SOCKET_URL=https://randallsnightly.com`, `CLOUDFRONT_DISTRIBUTION_ID=E2J2AGBK1BOAMP` (deploy-web invalidates on every deploy) |
 
 ## 8. GitHub Actions configuration
 
