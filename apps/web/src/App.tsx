@@ -9,6 +9,7 @@ import Friends from "./pages/Friends";
 import Feed from "./pages/Feed";
 import Series from "./pages/Series";
 import Subscribe from "./pages/Subscribe";
+import Download from "./pages/Download";
 import Settings from "./pages/Settings";
 import Admin from "./pages/Admin";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
@@ -40,6 +41,7 @@ function Nav() {
       <span className="text-white font-bold text-lg mr-4 ml-1.5">Randall's Nightly Tournaments</span>
       <NavLink to="/arena" className={linkClass}>Arena</NavLink>
       <NavLink to="/tournaments" className={linkClass}>Tournaments</NavLink>
+      <NavLink to="/download" className={linkClass}>Download</NavLink>
       <NavLink to="/friends" className={linkClass}>Friends</NavLink>
       <NavLink to="/feed" className={linkClass}>Feed</NavLink>
       {user?.role === "ADMIN" && (
@@ -85,6 +87,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/download" element={<Download />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route
