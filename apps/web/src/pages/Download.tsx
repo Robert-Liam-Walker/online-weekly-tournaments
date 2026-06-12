@@ -2,6 +2,8 @@
 // published launcher installer (GitHub Releases serves the asset; the
 // /latest/download path always points at the newest version).
 
+import PublicFooter from "../components/PublicFooter";
+
 const INSTALLER_URL =
   "https://github.com/Robert-Liam-Walker/randalls-launcher/releases/latest/download/Randalls-Nightly-Tournaments-Setup-0.1.0.exe";
 const RELEASES_URL = "https://github.com/Robert-Liam-Walker/randalls-launcher/releases/latest";
@@ -27,7 +29,8 @@ const STEPS: Array<{ title: string; body: string }> = [
 
 export default function Download() {
   return (
-    <div className="max-w-3xl mx-auto px-6 py-12">
+    <div className="min-h-screen bg-gray-950">
+      <div className="max-w-3xl mx-auto px-6 py-12">
       <div className="text-center mb-10">
         <img src="/favicon.png" alt="Randall" className="w-24 h-24 mx-auto mb-4" />
         <h1 className="text-4xl font-bold text-white mb-3">Randall's Nightly Tournaments</h1>
@@ -66,6 +69,8 @@ export default function Download() {
         Tournaments is not affiliated with Nintendo or the Slippi team. Launcher and emulator
         are open source (GPL) — sources at github.com/Robert-Liam-Walker.
       </p>
+      </div>
+      <PublicFooter />
     </div>
   );
 }
