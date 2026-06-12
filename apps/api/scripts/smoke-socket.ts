@@ -2,13 +2,27 @@ import "dotenv/config"; // load apps/api/.env when run standalone (run from apps
 // Smoke test for push-based tournament updates over Socket.io:
 //   npx -w apps/api tsx scripts/smoke-socket.ts
 // Requires the dev API running (HTTP + Socket.io share port 3001).
-// Logs in as WEDE#971 via /auth/game-login, opens an authenticated socket,
+// Mints a dev JWT for the seeded "robert" user, opens an authenticated socket,
 // creates a throwaway tournament over HTTP, registers for it, and asserts
 // the "tournament:update" {kind:"entry"} broadcast arrives within 5 seconds.
 // The throwaway tournament is removed via prisma on both start and finish.
 
+import { createHmac } from "crypto";
 import { io, Socket } from "socket.io-client";
 import { prisma } from "../src/lib/prisma";
+
+// Dev-only HS256 JWT mint (same shape @fastify/jwt produces) — replaces the
+// removed /auth/game-login dependency; see mint-dev-token.ts.
+function mintToken(userId: string): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error("JWT_SECRET missing from apps/api/.env");
+  const b64url = (input: string) => Buffer.from(input).toString("base64url");
+  const now = Math.floor(Date.now() / 1000);
+  const header = b64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+  const body = b64url(JSON.stringify({ id: userId, iat: now, exp: now + 86400 }));
+  const sig = createHmac("sha256", secret).update(`${header}.${body}`).digest("base64url");
+  return `${header}.${body}.${sig}`;
+}
 
 const API = "http://127.0.0.1:3001/api";
 const SOCKET_URL = "http://127.0.0.1:3001"; // Socket.io rides the API port
@@ -81,11 +95,12 @@ function waitForUpdate(socket: Socket, tournamentId: string): Promise<UpdatePayl
 async function main() {
   await cleanup();
 
-  // 1. Auth — same login the Dolphin client uses
-  const login = await http("POST", "/auth/game-login", undefined, { connectCode: "WEDE#971" });
-  if (login.status !== 200) throw new Error(`game-login failed (${login.status}): ${JSON.stringify(login.data)}`);
-  const token: string = login.data.token;
-  console.log(`logged in as ${login.data.user.username} (${login.data.user.connectCode})`);
+  // 1. Auth — mint a dev token for the seeded user
+  const username = process.env.SEED_USERNAME ?? "robert";
+  const me = await prisma.user.findUnique({ where: { username } });
+  if (!me) throw new Error(`user ${username} missing - run seed-dev-events.ts first`);
+  const token = mintToken(me.id);
+  console.log(`minted dev token for ${me.username}`);
 
   // 2. Socket
   const socket = await connectSocket(token);

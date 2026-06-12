@@ -80,14 +80,13 @@ async function authCall(path: string, body: unknown) {
 async function loginOrRegister(
   username: string,
   email: string,
-  password: string,
-  connectCode: string
+  password: string
 ): Promise<{ token: string; userId: string; created: boolean }> {
   const login = await authCall("/auth/login", { email, password });
   if (login.status === 200) {
     return { token: login.data.token, userId: login.data.user.id, created: false };
   }
-  const reg = await authCall("/auth/register", { username, email, password, connectCode });
+  const reg = await authCall("/auth/register", { username, email, password });
   if (reg.status !== 200 && reg.status !== 201) {
     throw new Error(`register ${username} failed: ${reg.status} ${JSON.stringify(reg.data)}`);
   }
@@ -98,7 +97,7 @@ async function main() {
   if (!ADMIN_PASSWORD) throw new Error("SEED_ADMIN_PASSWORD is required");
 
   // --- 1. Operator account (ADMIN_EMAIL bootstrap promotes it) ------------
-  const admin = await loginOrRegister("robert", ADMIN_EMAIL, ADMIN_PASSWORD, "WEDE#971");
+  const admin = await loginOrRegister("robert", ADMIN_EMAIL, ADMIN_PASSWORD);
   console.log(`admin: ${admin.created ? "registered" : "logged in"}`);
 
   // --- 2. Demo tournament. A previous abandoned demo (no results yet) is
@@ -146,8 +145,7 @@ async function main() {
     const u = await loginOrRegister(
       username,
       `${TAG}-${i}@example.invalid`,
-      DEMO_PASSWORD,
-      `DEMO#${i + 1}`
+      DEMO_PASSWORD
     );
     tokens.set(u.userId, u.token);
 

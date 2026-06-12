@@ -4,7 +4,7 @@ export interface ParsedReplay {
   stage: number | null;
   players: Array<{
     port: number;
-    connectCode: string | null;
+    playerName: string | null;
     characterId: number | null;
   }>;
   winner: number | null; // player port of the winner
@@ -18,13 +18,17 @@ export function parseReplayBuffer(buffer: Buffer): ParsedReplay {
   const stats = game.getStats();
 
   // metadata.players is keyed by 0-based playerIndex (NOT by 1-based port);
-  // settings player carries both, so look up the code by playerIndex while
-  // exposing the port externally.
-  const players = (settings?.players ?? []).map((p) => ({
-    port: p.port,
-    connectCode: metadata?.players?.[p.playerIndex]?.names?.code ?? null,
-    characterId: p.characterId,
-  }));
+  // settings player carries both, so look up the name by playerIndex while
+  // exposing the port externally. Prefer the netplay display name; fall back
+  // to the legacy code field for older replays.
+  const players = (settings?.players ?? []).map((p) => {
+    const names = metadata?.players?.[p.playerIndex]?.names;
+    return {
+      port: p.port,
+      playerName: names?.netplay ?? names?.code ?? null,
+      characterId: p.characterId,
+    };
+  });
 
   // playerIndex (0-based, used by stats) -> port (1-based, our public contract)
   const portByIndex = new Map<number, number>(

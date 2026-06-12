@@ -12,7 +12,6 @@ model User {
   username           String             @unique
   email              String             @unique
   passwordHash       String
-  connectCode        String             @unique
   role               UserRole           @default(USER)
   stripeCustomerId   String?            @unique
   subscriptionStatus SubscriptionStatus @default(FREE)
@@ -197,7 +196,7 @@ model TournamentReplay {
   storagePath      String
   stage            Int?
   durationFrames   Int?
-  parsedWinnerCode String?
+  parsedWinnerName String?
   verification     ReplayVerification @default(PENDING)
   resolvedAt       DateTime?
   resolvedById     String?

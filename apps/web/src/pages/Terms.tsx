@@ -30,8 +30,8 @@ export default function Terms() {
 
         <Section title="Your account">
           <p>
-            You need an account with a valid email address, a username, and
-            your Slippi connect code to register for tournaments. You are
+            You need an account with a valid email address and a username
+            to register for tournaments. You are
             responsible for keeping your password private and for what happens
             under your account. One account per person, please.
           </p>

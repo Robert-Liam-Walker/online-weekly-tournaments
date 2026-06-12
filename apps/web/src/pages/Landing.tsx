@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import FoxIcon from "../components/FoxIcon";
+import RandallIcon from "../components/RandallIcon";
 import PublicFooter from "../components/PublicFooter";
 
 // Public marketing homepage. Served at "/" for logged-out visitors.
@@ -95,7 +95,7 @@ const HOW_IT_WORKS: Array<{ title: string; body: string }> = [
   },
   {
     title: "Create an account",
-    body: "Register with your email and Slippi connect code, then link your game with a one-time device code.",
+    body: "Register with your email and a username, then link your game with a one-time device code.",
   },
   {
     title: "Register for tonight",
@@ -126,7 +126,7 @@ export default function Landing() {
       {/* Hero */}
       <header className="max-w-5xl mx-auto px-6 pt-20 pb-16 text-center">
         <div className="flex justify-center mb-6">
-          <FoxIcon size={96} />
+          <RandallIcon size={96} />
         </div>
         <h1 className="text-4xl sm:text-5xl font-bold mb-4">
           Randall's Nightly Tournaments

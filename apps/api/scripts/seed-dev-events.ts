@@ -1,23 +1,22 @@
 import "dotenv/config"; // load apps/api/.env when run standalone (run from apps/api/)
-// Dev seeding: Robert's account (Slippi connect code) + near-term test
-// events so the in-game browser has data. Idempotent.
+// Dev seeding: Robert's account + near-term test events so the in-game
+// browser has data. Idempotent.
 import { prisma } from "../src/lib/prisma";
 
 async function main() {
-  const connectCode = process.env.SEED_CONNECT_CODE ?? "WEDE#971";
-  let user = await prisma.user.findUnique({ where: { connectCode } });
+  const username = process.env.SEED_USERNAME ?? "robert";
+  let user = await prisma.user.findUnique({ where: { username } });
   if (!user) {
     user = await prisma.user.create({
       data: {
-        username: "robert",
+        username,
         email: "robert.liam.walker@gmail.com",
         passwordHash: "dev-placeholder-not-a-real-hash",
-        connectCode,
       },
     });
-    console.log(`created user ${user.username} (${connectCode})`);
+    console.log(`created user ${user.username}`);
   } else {
-    console.log(`user ${user.username} (${connectCode}) already exists`);
+    console.log(`user ${user.username} already exists`);
   }
 
   const events = [

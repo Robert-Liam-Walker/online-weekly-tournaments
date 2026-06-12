@@ -87,7 +87,7 @@ export async function deviceRoutes(app: FastifyInstance) {
 
       const user = await prisma.user.findUnique({
         where: { id: link.userId },
-        select: { id: true, username: true, connectCode: true },
+        select: { id: true, username: true },
       });
       if (!user) return reply.code(404).send({ error: "User not found" });
 

@@ -233,7 +233,7 @@ function ReplayReviewsPanel({ tournamentId }: { tournamentId: string }) {
                   {r.fileName}
                 </p>
                 <p className="text-gray-500 text-xs">
-                  Parsed winner: {r.parsedWinnerCode ?? "unknown"}
+                  Parsed winner: {r.parsedWinnerName ?? "unknown"}
                 </p>
               </div>
               <span

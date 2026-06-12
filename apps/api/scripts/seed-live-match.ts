@@ -8,18 +8,17 @@ const NAME = "Live Bracket Demo";
 
 async function main() {
   const me = await prisma.user.findUnique({
-    where: { connectCode: process.env.SEED_CONNECT_CODE ?? "WEDE#971" },
+    where: { username: process.env.SEED_USERNAME ?? "robert" },
   });
   if (!me) throw new Error("dev user missing - run seed-dev-events.ts first");
 
-  let opp = await prisma.user.findUnique({ where: { connectCode: "DEMO#001" } });
+  let opp = await prisma.user.findUnique({ where: { username: "BracketDemoFoe" } });
   if (!opp) {
     opp = await prisma.user.create({
       data: {
         username: "BracketDemoFoe",
         email: "demo-opponent@example.invalid",
         passwordHash: "x",
-        connectCode: "DEMO#001",
       },
     });
   }

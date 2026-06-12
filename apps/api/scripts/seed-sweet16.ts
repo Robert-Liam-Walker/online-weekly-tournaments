@@ -12,7 +12,7 @@ const FAKES = [
 
 async function main() {
   const me = await prisma.user.findUnique({
-    where: { connectCode: process.env.SEED_CONNECT_CODE ?? "WEDE#971" },
+    where: { username: process.env.SEED_USERNAME ?? "robert" },
   });
   if (!me) throw new Error("dev user missing - run seed-dev-events.ts first");
 
@@ -26,7 +26,6 @@ async function main() {
           username,
           email: `${username.toLowerCase()}@example.invalid`,
           passwordHash: "x",
-          connectCode: `FK${String(i).padStart(2, "0")}#${100 + i}`,
         },
       });
     }

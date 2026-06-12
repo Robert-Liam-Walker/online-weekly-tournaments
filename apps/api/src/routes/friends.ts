@@ -11,7 +11,7 @@ export async function friendRoutes(app: FastifyInstance) {
     return prisma.friendRequest.findMany({
       where: { requesteeId: userId, status: "PENDING" },
       include: {
-        requester: { select: { id: true, username: true, connectCode: true } },
+        requester: { select: { id: true, username: true } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -24,8 +24,8 @@ export async function friendRoutes(app: FastifyInstance) {
     const friendships = await prisma.friendship.findMany({
       where: { OR: [{ initiatorId: userId }, { receiverId: userId }] },
       include: {
-        initiator: { select: { id: true, username: true, connectCode: true } },
-        receiver: { select: { id: true, username: true, connectCode: true } },
+        initiator: { select: { id: true, username: true } },
+        receiver: { select: { id: true, username: true } },
       },
     });
 
@@ -41,7 +41,7 @@ export async function friendRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const userId = (request.user as { id: string }).id;
       const schema = z.object({
-        connectCode: z.string(),
+        username: z.string(),
       });
 
       const body = schema.safeParse(request.body);
@@ -49,8 +49,8 @@ export async function friendRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: body.error.flatten() });
       }
 
-      const target = await prisma.user.findUnique({
-        where: { connectCode: body.data.connectCode },
+      const target = await prisma.user.findFirst({
+        where: { username: { equals: body.data.username, mode: "insensitive" } },
         select: { id: true, username: true },
       });
       if (!target) {
@@ -75,7 +75,7 @@ export async function friendRoutes(app: FastifyInstance) {
       const req = await prisma.friendRequest.create({
         data: { requesterId: userId, requesteeId: target.id },
         include: {
-          requester: { select: { id: true, username: true, connectCode: true } },
+          requester: { select: { id: true, username: true } },
         },
       });
 

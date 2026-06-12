@@ -11,8 +11,8 @@ export async function challengeRoutes(app: FastifyInstance) {
     return prisma.challenge.findMany({
       where: { challengedId: userId, status: "PENDING" },
       include: {
-        challenger: { select: { id: true, username: true, connectCode: true } },
-        challenged: { select: { id: true, username: true, connectCode: true } },
+        challenger: { select: { id: true, username: true } },
+        challenged: { select: { id: true, username: true } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -57,8 +57,8 @@ export async function challengeRoutes(app: FastifyInstance) {
           format: body.data.format,
         },
         include: {
-          challenger: { select: { id: true, username: true, connectCode: true } },
-          challenged: { select: { id: true, username: true, connectCode: true } },
+          challenger: { select: { id: true, username: true } },
+          challenged: { select: { id: true, username: true } },
         },
       });
 

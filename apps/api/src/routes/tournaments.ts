@@ -68,7 +68,7 @@ export async function tournamentRoutes(app: FastifyInstance) {
       include: {
         entries: {
           include: {
-            user: { select: { id: true, username: true, connectCode: true } },
+            user: { select: { id: true, username: true } },
           },
         },
         matches: {
@@ -108,7 +108,7 @@ export async function tournamentRoutes(app: FastifyInstance) {
     if (tournament.entryFee === 0) {
       const entry = await prisma.tournamentEntry.create({
         data: { tournamentId: id, userId },
-        include: { user: { select: { id: true, username: true, connectCode: true } } },
+        include: { user: { select: { id: true, username: true } } },
       });
       emitTournamentUpdate(id, "entry");
       return reply.code(201).send({ entry });
