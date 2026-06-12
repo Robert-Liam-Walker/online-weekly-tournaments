@@ -120,6 +120,8 @@ ENV PORT=3001
 # it is being consolidated onto PORT — drop 3002 once that lands.
 EXPOSE 3001
 EXPOSE 3002
+# Match-rendezvous UDP registrar (binds only when RENDEZVOUS_UDP_PORT is set)
+EXPOSE 41100/udp
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "apps/api/dist/index.js"]
