@@ -1,3 +1,4 @@
+import "dotenv/config"; // load apps/api/.env when run standalone (run from apps/api/)
 // Tournament-integrity smoke test, run directly against the dev database
 // (same pattern as scripts/smoke-tournament.ts):
 //   npx -w apps/api tsx scripts/smoke-integrity.ts

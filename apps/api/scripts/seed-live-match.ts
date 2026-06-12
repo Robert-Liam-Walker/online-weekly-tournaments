@@ -1,3 +1,4 @@
+import "dotenv/config"; // load apps/api/.env when run standalone (run from apps/api/)
 // Dev: spin up an ACTIVE tournament where the dev user has a ready
 // bracket match against a fake opponent. Idempotent-ish (recreates).
 import { prisma } from "../src/lib/prisma";

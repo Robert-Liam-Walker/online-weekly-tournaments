@@ -1,3 +1,4 @@
+import "dotenv/config"; // load apps/api/.env when run standalone (run from apps/api/)
 // Promote a user to ADMIN by username or email:
 //   npx -w apps/api tsx scripts/set-admin.ts <username-or-email>
 

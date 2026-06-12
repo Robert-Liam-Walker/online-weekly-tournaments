@@ -1,3 +1,4 @@
+import "dotenv/config"; // load apps/api/.env when run standalone (run from apps/api/)
 // End-to-end smoke test for the tournament bracket flow, run directly
 // against the dev database:
 //   npx -w apps/api tsx scripts/smoke-tournament.ts

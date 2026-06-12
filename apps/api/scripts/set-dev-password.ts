@@ -1,3 +1,4 @@
+import "dotenv/config"; // load apps/api/.env when run standalone (run from apps/api/)
 // Dev helper: give the seeded dev account a real password for web login.
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/lib/prisma";

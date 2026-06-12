@@ -9,6 +9,12 @@ import {
 import { prisma } from "./prisma";
 import { isPresent } from "./presence";
 import { withTournamentLock } from "./tournamentLock";
+import {
+  getOrCreateRendezvous,
+  invalidateRendezvous,
+  rendezvousConfig,
+  RdvTicket,
+} from "./rendezvous";
 
 // Bridges the pure bracket engine and the database. The engine state is
 // never stored directly: it is rebuilt from the seeded entry list and the
@@ -180,6 +186,11 @@ async function applyResult(
   const bracket = await rebuildEngine(tournamentId);
   reportResult(bracket, matchKey, winnerId); // validates readiness + participant
   await persistEngine(tournamentId, bracket);
+
+  // Every recorded result (player report, TO override, DQ forfeit, no-show
+  // cascade) funnels through here — kill the match's rendezvous so no client
+  // can pair into a decided match.
+  await invalidateRendezvous(tournamentId, matchKey);
 
   if (!isComplete(bracket)) return { complete: false };
 
@@ -394,8 +405,14 @@ export async function sweepNoShows(
   });
 }
 
-/** Matches ready to be played (both players known, no winner yet) */
-export async function getReadyTournamentMatches(tournamentId: string) {
+/**
+ * Matches ready to be played (both players known, no winner yet). When
+ * `viewerId` is one of a match's players AND the deployment has rendezvous
+ * configured (RENDEZVOUS_HOST + RENDEZVOUS_UDP_PORT), that match carries a
+ * personalized `rendezvous` ticket — additive: clients that predate it
+ * ignore the extra field.
+ */
+export async function getReadyTournamentMatches(tournamentId: string, viewerId?: string) {
   const bracket = await rebuildEngine(tournamentId);
   const ready = getReadyMatches(bracket);
 
@@ -413,12 +430,29 @@ export async function getReadyTournamentMatches(tournamentId: string) {
   const byId = new Map(users.map((u) => [u.id, u]));
   const readyAtByKey = new Map(rows.map((r) => [r.matchKey, r.readyAt]));
 
-  return ready.map((m) => ({
-    matchKey: m.def.key,
-    round: m.def.round,
-    matchNumber: m.def.matchNumber,
-    readyAt: readyAtByKey.get(m.def.key) ?? null,
-    player1: byId.get(m.p1!) ?? { id: m.p1!, username: "unknown", connectCode: "" },
-    player2: byId.get(m.p2!) ?? { id: m.p2!, username: "unknown", connectCode: "" },
-  }));
+  const config = rendezvousConfig();
+  return Promise.all(
+    ready.map(async (m) => {
+      let rendezvous: (RdvTicket & { udpHost: string; udpPort: number }) | undefined;
+      if (config && viewerId && (m.p1 === viewerId || m.p2 === viewerId)) {
+        const ticket = await getOrCreateRendezvous(
+          tournamentId,
+          m.def.key,
+          m.p1!,
+          m.p2!,
+          viewerId
+        );
+        if (ticket) rendezvous = { ...ticket, ...config };
+      }
+      return {
+        matchKey: m.def.key,
+        round: m.def.round,
+        matchNumber: m.def.matchNumber,
+        readyAt: readyAtByKey.get(m.def.key) ?? null,
+        player1: byId.get(m.p1!) ?? { id: m.p1!, username: "unknown", connectCode: "" },
+        player2: byId.get(m.p2!) ?? { id: m.p2!, username: "unknown", connectCode: "" },
+        ...(rendezvous ? { rendezvous } : {}),
+      };
+    })
+  );
 }
