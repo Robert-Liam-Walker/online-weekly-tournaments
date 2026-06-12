@@ -136,8 +136,11 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
+    // Admin bootstrap: the operator email (ADMIN_EMAIL env) registers
+    // straight into the ADMIN role — production has no DB shell access.
+    const role = process.env.ADMIN_EMAIL && email === process.env.ADMIN_EMAIL ? "ADMIN" : "USER";
     const user = await prisma.user.create({
-      data: { username, email, passwordHash, connectCode },
+      data: { username, email, passwordHash, connectCode, role },
       select: { id: true, username: true, email: true, connectCode: true, subscriptionStatus: true },
     });
 

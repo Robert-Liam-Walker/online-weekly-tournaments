@@ -135,6 +135,18 @@ async function main() {
     }
   );
 
+  // Admin bootstrap: production has no DB shell access, so the operator
+  // account is promoted by email. Idempotent; also applied at registration
+  // time (routes/auth.ts) so the order of register-vs-boot doesn't matter.
+  const adminEmail = process.env.ADMIN_EMAIL;
+  if (adminEmail) {
+    const promoted = await prisma.user.updateMany({
+      where: { email: adminEmail, role: "USER" },
+      data: { role: "ADMIN" },
+    });
+    if (promoted.count > 0) app.log.info(`admin bootstrap: promoted ${adminEmail}`);
+  }
+
   // Stripe webhook must receive raw body — register before body parser
   await app.register(stripeWebhookRoute, { prefix: "/api/webhooks" });
 

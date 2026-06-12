@@ -143,6 +143,14 @@ export default function Login() {
               {loading ? "..." : tab === "login" ? "Sign In" : "Create Account"}
             </button>
           </form>
+
+          <p className="text-center text-sm text-gray-500 mt-4">
+            New here?{" "}
+            <Link to="/download" className="text-green-500 hover:text-green-400">
+              Download the launcher
+            </Link>{" "}
+            and play tonight.
+          </p>
         </div>
       </div>
     </div>
