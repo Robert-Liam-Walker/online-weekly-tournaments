@@ -14,6 +14,9 @@ import Settings from "./pages/Settings";
 import Admin from "./pages/Admin";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import Landing from "./pages/Landing";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
 import RequireAuth from "./components/RequireAuth";
 import ChallengeNotification from "./components/ChallengeNotification";
 import FoxIcon from "./components/FoxIcon";
@@ -81,11 +84,31 @@ function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
+// "/" split: logged-out visitors (no auth token) get the public marketing
+// landing page; anyone with a token gets the authed app exactly as before
+// (RequireAuth still validates the token and bounces to /login if stale).
+function Home() {
+  const token = useAuthStore((s) => s.token);
+  if (!token) {
+    return <Landing />;
+  }
+  return (
+    <RequireAuth>
+      <Layout>
+        <Arena />
+      </Layout>
+    </RequireAuth>
+  );
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
           <Route path="/login" element={<Login />} />
           <Route path="/download" element={<Download />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
