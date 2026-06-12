@@ -75,22 +75,29 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
           VERSION_LABEL: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
-          # Single-container Docker source bundle: just a Dockerrun pointing
-          # at the image we pushed. The EB instance profile needs
-          # AmazonEC2ContainerRegistryReadOnly to pull it.
-          cat > Dockerrun.aws.json <<EOF
-          {
-            "AWSEBDockerrunVersion": "1",
-            "Image": {
-              "Name": "${REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}",
-              "Update": "true"
-            },
-            "Ports": [
-              { "ContainerPort": 3001 }
-            ]
-          }
+          # Docker Compose source bundle (replaces the Dockerrun v1 bundle):
+          # compose mode is the supported way to publish more than one port —
+          # the UDP rendezvous registrar needs 41100/udp, which Dockerrun v1
+          # cannot map. Two behavior changes vs Dockerrun, both deliberate:
+          #   - EB does NOT run its managed nginx in compose mode, so the
+          #     container publishes host port 80 itself (CloudFront's EB
+          #     origin keeps hitting :80 unchanged).
+          #   - EB writes the environment properties to a .env file in the
+          #     app root; env_file picks them up (RENDEZVOUS_HOST/PORT etc.).
+          # Rollback = redeploy a previous (Dockerrun) version label; EB
+          # reconfigures per-bundle. Instance profile still needs
+          # AmazonEC2ContainerRegistryReadOnly to pull the image.
+          cat > docker-compose.yml <<EOF
+          services:
+            api:
+              image: ${REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+              ports:
+                - "80:3001"
+                - "41100:41100/udp"
+              env_file: .env
+              restart: unless-stopped
           EOF
-          zip -r bundle.zip Dockerrun.aws.json
+          zip -r bundle.zip docker-compose.yml
 
           # EB's per-account/region artifacts bucket (creates it if missing).
           BUCKET=$(aws elasticbeanstalk create-storage-location \
