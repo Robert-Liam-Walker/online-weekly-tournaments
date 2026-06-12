@@ -324,6 +324,7 @@ Web build-time URLs in this setup:
 | SES | domain identity `randallsnightly.com` VERIFIED; `SES_FROM_EMAIL=no-reply@randallsnightly.com` on EB; production access REQUESTED 2026-06-12 (pending AWS review — sandbox limits recipients until then) |
 | EB env | `WEB_URL=https://randallsnightly.com` set 2026-06-12 |
 | GH Actions vars | `VITE_API_URL=https://randallsnightly.com/api`, `VITE_SOCKET_URL=https://randallsnightly.com`, `CLOUDFRONT_DISTRIBUTION_ID=E2J2AGBK1BOAMP` (deploy-web invalidates on every deploy) |
+| Match rendezvous (UDP) | Deploy bundle is **docker-compose** (EB compose mode: no managed nginx — the container publishes `80:3001` itself — and env properties arrive via the EB-generated `.env`). Ports `80:3001` + `41100:41100/udp`. EB env props `RENDEZVOUS_HOST=rdv.randallsnightly.com`, `RENDEZVOUS_UDP_PORT=41100` (HOST is what `/ready` advertises to clients; the socket binds 0.0.0.0). `rdv.randallsnightly.com` A → the single-instance EIP **directly** (CloudFront cannot proxy UDP — bypassed by design; if EB ever scales out, move the registrar to a dedicated instance or NLB-UDP). SG: UDP 41100 ingress from 0.0.0.0/0 on the EB instance SG. Registrar drops malformed/unknown packets silently (anti-reflector) — a from-outside preflight needs real `/ready` tokens; packet arrival shows in app logs as `rdv packet rejected` |
 
 ## 8. GitHub Actions configuration
 
