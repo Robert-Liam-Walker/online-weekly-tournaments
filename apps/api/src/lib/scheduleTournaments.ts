@@ -2,94 +2,52 @@ import cron from "node-cron";
 import { prisma } from "./prisma";
 import { startTournament, sweepNoShows } from "./bracketService";
 import { emitTournamentUpdate } from "./tournamentEvents";
+import { REGIONS, nextNightAt, regionDateLabel } from "./regions";
 
 /**
- * Upcoming Saturday at the given hour, computed explicitly in UTC.
+ * Randall's Nightly Tournaments: every night, ONE free event per region
+ * (EU / NA East / NA West) at 20:00 region-local — DST-correct via
+ * lib/regions.ts. Events are stored as absolute UTC instants; clients
+ * render region-local + viewer-local times.
  *
- * Timezone policy: event times are stored and compared as absolute UTC instants
- * (built via Date.UTC) so the server's local timezone can never shift them.
- * Clients are responsible for rendering these instants in the viewer's local time.
+ * Idempotency: the scheduler computes each region's next 20:00-local
+ * instant deterministically, so "(region, scheduledAt) already exists"
+ * is an exact-match check — re-runs and multi-instance races can only
+ * ever find-or-create the same row. (No unique constraint needed; the
+ * worst race outcome is a transient duplicate that the exact-match check
+ * prevents in practice since the cron is single-instance today.)
  *
- * If today (in UTC) is Saturday, schedules for the following Saturday.
+ * Release scope is FREE-ONLY (Stripe dormant): the nightly scheduler
+ * creates no paid events at all. Paid creation remains possible only via
+ * the admin route behind PAID_EVENTS_ENABLED.
  */
-function nextSaturdayUtc(hour: number): Date {
-  const now = new Date();
-  const day = now.getUTCDay(); // 0=Sun, 6=Sat
-  const daysUntilSat = day === 6 ? 7 : 6 - day;
-  // Date.UTC normalizes day-of-month overflow (e.g. Jan 30 + 6 days -> Feb 5).
-  return new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysUntilSat, hour, 0, 0, 0)
-  );
-}
+export async function ensureNightlyTournaments(now: Date = new Date()) {
+  for (const region of REGIONS) {
+    const scheduledAt = nextNightAt(region, now);
+    const existing = await prisma.tournament.findFirst({
+      where: { region: region.code, scheduledAt },
+    });
+    if (existing) continue;
 
-function weekLabel(): string {
-  return nextSaturdayUtc(14).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC", // label must match the event's UTC date regardless of server timezone
-  });
-}
-
-export async function createWeeklyTournaments() {
-  // Public launch is FREE EVENTS ONLY: the paid Saturday event is created only
-  // when PAID_EVENTS_ENABLED === "true". Unset/anything else => free event only.
-  const paidEventsEnabled = process.env.PAID_EVENTS_ENABLED === "true";
-
-  const freeTime = nextSaturdayUtc(14); // Saturday 14:00 UTC
-  const paidTime = nextSaturdayUtc(17); // Saturday 17:00 UTC
-
-  // Idempotent — skip if tournaments already exist for this Saturday.
-  // The window intentionally spans the full 14:00–17:00 UTC slot even when paid
-  // events are disabled, so re-runs never duplicate the free event.
-  const existing = await prisma.tournament.findFirst({
-    where: { scheduledAt: { gte: freeTime, lte: paidTime } },
-  });
-
-  if (existing) {
-    console.log(`[scheduler] Tournaments already exist for ${weekLabel()}, skipping.`);
-    return;
-  }
-
-  const label = weekLabel();
-
-  const creates: Promise<unknown>[] = [
-    prisma.tournament.create({
+    const label = regionDateLabel(scheduledAt, region.tz);
+    await prisma.tournament.create({
       data: {
-        name: `Weekly Open — ${label}`,
-        description: "Free entry, open to all. Best of 3, single elimination.",
-        scheduledAt: freeTime,
-        format: "SINGLE_ELIM",
+        name: `Randalls Nightly — ${region.label} — ${label}`,
+        description:
+          "Free entry, open to all. 32-player double elimination, best of 3. Check in within 30 minutes of start.",
+        scheduledAt,
+        region: region.code,
+        format: "DOUBLE_ELIM",
         seriesFormat: "BO3",
         maxEntrants: 32,
         entryFee: 0,
         status: "REGISTRATION",
       },
-    }),
-  ];
-
-  if (paidEventsEnabled) {
-    creates.push(
-      prisma.tournament.create({
-        data: {
-          name: `Weekly Invitational — ${label}`,
-          description:
-            "$5 entry. Prize pool paid out to top 3: 50% / 25% / 10%. Best of 5, double elimination.",
-          scheduledAt: paidTime,
-          format: "DOUBLE_ELIM",
-          seriesFormat: "BO5",
-          maxEntrants: 16,
-          entryFee: 500,
-          status: "REGISTRATION",
-        },
-      })
+    });
+    console.log(
+      `[scheduler] Created Randalls Nightly — ${region.label} — ${label} (${scheduledAt.toISOString()}).`
     );
   }
-
-  await Promise.all(creates);
-
-  console.log(
-    `[scheduler] Created ${paidEventsEnabled ? "free + paid" : "free-only"} weekly tournament(s) for ${label}.`
-  );
 }
 
 /** Start (or cancel) any tournament whose scheduled time has arrived */
@@ -142,24 +100,18 @@ export async function sweepNoShowTournaments() {
   }
 }
 
-/** Runs every Monday at 9:00 AM to create that week's Saturday tournaments. */
+/** Boot + per-minute loop: ensure tonight's regionals exist, start due
+ *  tournaments (close check-in, generate brackets), auto-DQ no-shows. */
 export function startTournamentScheduler() {
-  // Create immediately on startup if none exist yet
-  createWeeklyTournaments().catch(console.error);
+  ensureNightlyTournaments().catch(console.error);
 
-  // Then re-run every Monday at 09:00
-  cron.schedule("0 9 * * 1", () => {
-    createWeeklyTournaments().catch(console.error);
-  });
-
-  // Start due tournaments (close check-in, generate brackets) every minute,
-  // then auto-DQ no-shows across ACTIVE tournaments.
   cron.schedule("* * * * *", async () => {
+    await ensureNightlyTournaments().catch(console.error); // cheap + idempotent
     await startDueTournaments().catch(console.error);
     await sweepNoShowTournaments().catch(console.error);
   });
 
   console.log(
-    "[scheduler] Tournament scheduler started (creates Mondays 09:00, starts due tournaments every minute)."
+    "[scheduler] Nightly scheduler started (3 regional events/night at 20:00 local; due-start + no-show sweep every minute)."
   );
 }
