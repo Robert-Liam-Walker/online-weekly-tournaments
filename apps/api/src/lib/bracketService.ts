@@ -420,7 +420,7 @@ export async function getReadyTournamentMatches(tournamentId: string, viewerId?:
   const [users, rows] = await Promise.all([
     prisma.user.findMany({
       where: { id: { in: playerIds } },
-      select: { id: true, username: true, connectCode: true },
+      select: { id: true, username: true },
     }),
     prisma.tournamentMatch.findMany({
       where: { tournamentId, matchKey: { in: ready.map((m) => m.def.key) } },
@@ -449,8 +449,8 @@ export async function getReadyTournamentMatches(tournamentId: string, viewerId?:
         round: m.def.round,
         matchNumber: m.def.matchNumber,
         readyAt: readyAtByKey.get(m.def.key) ?? null,
-        player1: byId.get(m.p1!) ?? { id: m.p1!, username: "unknown", connectCode: "" },
-        player2: byId.get(m.p2!) ?? { id: m.p2!, username: "unknown", connectCode: "" },
+        player1: byId.get(m.p1!) ?? { id: m.p1!, username: "unknown" },
+        player2: byId.get(m.p2!) ?? { id: m.p2!, username: "unknown" },
         ...(rendezvous ? { rendezvous } : {}),
       };
     })

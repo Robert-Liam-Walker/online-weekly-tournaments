@@ -55,7 +55,6 @@ async function makeReadyMatch(suffix: string): Promise<{
         username: `RdvSmoke${n}`,
         email: `rdv-smoke-${n}@example.invalid`,
         passwordHash: "x",
-        connectCode: `RV0${n}#90${n}`,
       },
     });
     users.push(u.id);

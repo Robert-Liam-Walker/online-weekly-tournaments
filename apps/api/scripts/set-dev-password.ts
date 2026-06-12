@@ -5,7 +5,7 @@ import { prisma } from "../src/lib/prisma";
 
 async function main() {
   const hash = await bcrypt.hash("***REMOVED***", 12);
-  await prisma.user.update({ where: { connectCode: "WEDE#971" }, data: { passwordHash: hash } });
-  console.log("dev password set for robert (WEDE#971): ***REMOVED***");
+  await prisma.user.update({ where: { username: "robert" }, data: { passwordHash: hash } });
+  console.log("dev password set for robert: ***REMOVED***");
 }
 main().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });

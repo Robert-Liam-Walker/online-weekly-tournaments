@@ -30,8 +30,8 @@ function setGame() {
   h.metadata = {
     lastFrame: 1234,
     players: {
-      0: { names: { code: "AAAA#111" } },
-      1: { names: { code: "BBBB#222" } },
+      0: { names: { netplay: "PlayerOne", code: "AAAA#111" } },
+      1: { names: { netplay: "PlayerTwo", code: "BBBB#222" } },
     },
   };
   // Player at index 1 (port 2) wins: keeps a stock, more kills.
@@ -47,12 +47,25 @@ function setGame() {
 describe("parseReplayBuffer", () => {
   beforeEach(() => setGame());
 
-  it("pairs each player's connect code by playerIndex, not port", () => {
+  it("pairs each player's name by playerIndex, not port", () => {
     const parsed = parseReplayBuffer(Buffer.from([]));
     const p1 = parsed.players.find((p) => p.port === 1);
     const p2 = parsed.players.find((p) => p.port === 2);
-    expect(p1?.connectCode).toBe("AAAA#111");
-    expect(p2?.connectCode).toBe("BBBB#222");
+    expect(p1?.playerName).toBe("PlayerOne");
+    expect(p2?.playerName).toBe("PlayerTwo");
+  });
+
+  it("falls back to the legacy code field when no netplay name exists", () => {
+    h.metadata = {
+      lastFrame: 1234,
+      players: {
+        0: { names: { code: "AAAA#111" } },
+        1: { names: { code: "BBBB#222" } },
+      },
+    };
+    const parsed = parseReplayBuffer(Buffer.from([]));
+    expect(parsed.players.find((p) => p.port === 1)?.playerName).toBe("AAAA#111");
+    expect(parsed.players.find((p) => p.port === 2)?.playerName).toBe("BBBB#222");
   });
 
   it("returns the winner as a port (1-based), not a 0-based playerIndex", () => {
@@ -61,10 +74,10 @@ describe("parseReplayBuffer", () => {
     expect(parsed.winner).toBe(2);
   });
 
-  it("the winner port resolves to the correct connect code (end-to-end pairing)", () => {
+  it("the winner port resolves to the correct player name (end-to-end pairing)", () => {
     const parsed = parseReplayBuffer(Buffer.from([]));
-    const winnerCode = parsed.players.find((p) => p.port === parsed.winner)?.connectCode;
-    expect(winnerCode).toBe("BBBB#222");
+    const winnerName = parsed.players.find((p) => p.port === parsed.winner)?.playerName;
+    expect(winnerName).toBe("PlayerTwo");
   });
 
   it("exposes stage and duration from settings/metadata", () => {

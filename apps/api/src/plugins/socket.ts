@@ -78,7 +78,7 @@ export function registerSocketHandlers(io: Server) {
       await addToArena(userId);
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { id: true, username: true, connectCode: true },
+        select: { id: true, username: true },
       });
       io.emit("arena:join", { user, format: data.format, note: data.note });
     });
@@ -98,7 +98,7 @@ export function registerSocketHandlers(io: Server) {
             format: data.format,
           },
           include: {
-            challenger: { select: { id: true, username: true, connectCode: true } },
+            challenger: { select: { id: true, username: true } },
           },
         });
 
@@ -111,8 +111,8 @@ export function registerSocketHandlers(io: Server) {
         where: { id: data.challengeId, challengedId: userId },
         data: { status: "ACCEPTED" },
         include: {
-          challenger: { select: { id: true, username: true, connectCode: true } },
-          challenged: { select: { id: true, username: true, connectCode: true } },
+          challenger: { select: { id: true, username: true } },
+          challenged: { select: { id: true, username: true } },
         },
       });
 

@@ -14,7 +14,6 @@ interface UserProfile {
   id: string;
   username: string;
   email: string;
-  connectCode: string;
   subscriptionStatus: string;
   subscriptionEndsAt?: string;
   createdAt: string;
@@ -74,10 +73,6 @@ export default function Settings() {
         <dl className="space-y-3">
           <Row label="Username" value={profile.username} />
           <Row label="Email" value={profile.email} />
-          <Row
-            label="Connect Code"
-            value={<span className="font-mono text-white">{profile.connectCode}</span>}
-          />
           <Row
             label="Member Since"
             value={new Date(profile.createdAt).toLocaleDateString("en-US", {

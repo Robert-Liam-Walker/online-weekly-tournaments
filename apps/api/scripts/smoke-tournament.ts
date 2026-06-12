@@ -35,7 +35,6 @@ async function main() {
           username: `${TAG}-p${i}`,
           email: `${TAG}-p${i}@example.invalid`,
           passwordHash: "x",
-          connectCode: `SM${String(i).padStart(2, "0")}#${i}`,
         },
       })
     );

@@ -2,16 +2,16 @@ import { createHash, randomBytes } from "crypto";
 import { FastifyInstance } from "fastify";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { USERNAME_REGEX } from "@foxtrot/shared";
 import { prisma } from "../lib/prisma";
 import { sendPasswordResetEmail } from "../lib/email";
 
 const registerSchema = z.object({
-  username: z.string().min(3).max(30),
+  username: z
+    .string()
+    .regex(USERNAME_REGEX, "Username must be 3-15 letters or numbers"),
   email: z.string().email(),
   password: z.string().min(8),
-  connectCode: z
-    .string()
-    .regex(/^[A-Z]{4}#\d{1,3}$/, "Connect code must be like FOXT#123"),
 });
 
 const loginSchema = z.object({
@@ -124,15 +124,22 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: body.error.flatten() });
     }
 
-    const { username, email, password, connectCode } = body.data;
+    const { username, email, password } = body.data;
 
+    // Username uniqueness is case-insensitive (DB enforces it via the
+    // lower(username) unique index; this check gives a friendly 409).
     const existing = await prisma.user.findFirst({
-      where: { OR: [{ email }, { username }, { connectCode }] },
+      where: {
+        OR: [
+          { email },
+          { username: { equals: username, mode: "insensitive" } },
+        ],
+      },
     });
     if (existing) {
       return reply
         .code(409)
-        .send({ error: "Email, username, or connect code already in use" });
+        .send({ error: "Email or username already in use" });
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
@@ -140,8 +147,8 @@ export async function authRoutes(app: FastifyInstance) {
     // straight into the ADMIN role — production has no DB shell access.
     const role = process.env.ADMIN_EMAIL && email === process.env.ADMIN_EMAIL ? "ADMIN" : "USER";
     const user = await prisma.user.create({
-      data: { username, email, passwordHash, connectCode, role },
-      select: { id: true, username: true, email: true, connectCode: true, subscriptionStatus: true },
+      data: { username, email, passwordHash, role },
+      select: { id: true, username: true, email: true, subscriptionStatus: true },
     });
 
     const token = app.jwt.sign({ id: user.id }, { expiresIn: "7d" });
@@ -172,7 +179,6 @@ export async function authRoutes(app: FastifyInstance) {
         id: user.id,
         username: user.username,
         email: user.email,
-        connectCode: user.connectCode,
         subscriptionStatus: user.subscriptionStatus,
       },
       token,
@@ -224,31 +230,35 @@ export async function authRoutes(app: FastifyInstance) {
     }
   );
 
-  // Game-client login: the FoxTrot Dolphin build authenticates with the
-  // connect code from the player's Slippi login (user.json).
+  // Game-client login by username.
   // DEPRECATED (2026-06-11): the Dolphin client now uses the device-link
   // flow exclusively; this route remains only for dev smoke scripts and old
-  // builds. Strictly rate-limited; REMOVE once the release client is
-  // confirmed in-game and the smoke scripts are migrated to device-link.
+  // builds. Disabled unless GAME_LOGIN_ENABLED=true (default off). Strictly
+  // rate-limited; REMOVE once the release client is confirmed in-game and
+  // the smoke scripts are migrated to device-link.
   app.post("/game-login", {
     config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
   }, async (request, reply) => {
-    const schema = z.object({ connectCode: z.string().min(3).max(10) });
+    if (process.env.GAME_LOGIN_ENABLED !== "true") {
+      return reply.code(403).send({ error: "Game login is disabled" });
+    }
+
+    const schema = z.object({ username: z.string().min(3).max(15) });
     const body = schema.safeParse(request.body);
     if (!body.success) return reply.code(400).send({ error: body.error.flatten() });
 
-    const user = await prisma.user.findUnique({
-      where: { connectCode: body.data.connectCode.toUpperCase() },
+    const user = await prisma.user.findFirst({
+      where: { username: { equals: body.data.username, mode: "insensitive" } },
     });
     if (!user) {
       return reply
         .code(404)
-        .send({ error: "No Randall's Nightly Tournaments account with this connect code — sign up on the web first" });
+        .send({ error: "No Randall's Nightly Tournaments account with this username — sign up on the web first" });
     }
 
     const token = app.jwt.sign({ id: user.id }, { expiresIn: "7d" });
     return {
-      user: { id: user.id, username: user.username, connectCode: user.connectCode },
+      user: { id: user.id, username: user.username },
       token,
     };
   });
@@ -264,7 +274,6 @@ export async function authRoutes(app: FastifyInstance) {
           id: true,
           username: true,
           email: true,
-          connectCode: true,
           role: true,
           subscriptionStatus: true,
           subscriptionEndsAt: true,

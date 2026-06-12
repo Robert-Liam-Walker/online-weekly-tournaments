@@ -46,7 +46,6 @@ async function main() {
         username: `${username}`,
         email: `${TAG}-${i}@example.invalid`,
         passwordHash: "x",
-        connectCode: `DM${String(i).padStart(2, "0")}#${100 + i}`,
       },
     });
     users.push(user);

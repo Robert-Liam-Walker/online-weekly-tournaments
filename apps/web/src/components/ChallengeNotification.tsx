@@ -78,8 +78,7 @@ export default function ChallengeNotification() {
   return (
     <div className="fixed bottom-6 right-6 z-50 bg-gray-800 border border-gray-600 rounded-xl shadow-2xl p-5 w-80">
       <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Incoming Challenge</p>
-      <p className="text-white font-bold text-lg mb-0.5">{active.challenger.username}</p>
-      <p className="text-gray-400 text-sm font-mono mb-1">{active.challenger.connectCode}</p>
+      <p className="text-white font-bold text-lg mb-1">{active.challenger.username}</p>
       <span
         className={`text-xs px-2 py-0.5 rounded-full font-medium ${
           active.format === "BO5"

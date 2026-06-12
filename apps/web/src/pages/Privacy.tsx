@@ -23,7 +23,6 @@ export default function Privacy() {
           <ul className="list-disc pl-6 space-y-1">
             <li>Your email address (for sign-in and password resets)</li>
             <li>Your username</li>
-            <li>Your Slippi connect code</li>
             <li>Match results — who played whom, scores, and bracket placements</li>
             <li>Match replays from tournament sets</li>
           </ul>
@@ -36,9 +35,9 @@ export default function Privacy() {
         <Section title="What we do with it">
           <p>
             We use this data to run brackets, report results, show standings,
-            and keep your account working. Usernames, connect codes, match
-            results, and replays from tournament play are visible to other
-            players — that's the nature of a public bracket.
+            and keep your account working. Usernames, match results, and
+            replays from tournament play are visible to other players —
+            that's the nature of a public bracket.
           </p>
         </Section>
 
