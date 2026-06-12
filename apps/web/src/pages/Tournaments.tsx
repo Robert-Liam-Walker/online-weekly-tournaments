@@ -1,11 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Tournament } from "../types";
 import { api } from "../lib/api";
 import { getSocket } from "../lib/socket";
-
-const PRIZE_SPLIT = { first: 50, second: 25, third: 10, platform: 15 };
+import {
+  REGIONS,
+  REGION_ORDER,
+  TournamentRegion,
+  isKnownRegion,
+  regionDate,
+  regionTime,
+  viewerTime,
+} from "../lib/regions";
 
 function dollars(cents: number) {
   return `$${(cents / 100).toFixed(0)}`;
@@ -21,13 +28,142 @@ function formatDate(iso: string) {
   });
 }
 
-function PrizeBreakdown({ prizePool }: { prizePool: number }) {
-  if (prizePool === 0) return <p className="text-gray-500 text-xs">Prize pool grows as players enter</p>;
+function StatusPill({ status }: { status: Tournament["status"] }) {
   return (
-    <div className="flex gap-3 text-xs mt-1">
-      <span className="text-yellow-300">🥇 {dollars(Math.floor(prizePool * PRIZE_SPLIT.first / 100))}</span>
-      <span className="text-gray-300">🥈 {dollars(Math.floor(prizePool * PRIZE_SPLIT.second / 100))}</span>
-      <span className="text-gray-400">🥉 {dollars(Math.floor(prizePool * PRIZE_SPLIT.third / 100))}</span>
+    <span
+      className={`text-xs px-2 py-1 rounded-full font-medium ${
+        status === "REGISTRATION"
+          ? "bg-blue-900 text-blue-300"
+          : status === "ACTIVE"
+            ? "bg-yellow-900 text-yellow-300"
+            : "bg-gray-700 text-gray-400"
+      }`}
+    >
+      {status === "REGISTRATION" ? "Open" : status === "ACTIVE" ? "Live" : status}
+    </span>
+  );
+}
+
+/** Register button / registered / checked-in / full / bracket link state. */
+function NightlyCardActions({ t, onRegister, registering }: {
+  t: Tournament;
+  onRegister: (t: Tournament) => void;
+  registering: boolean;
+}) {
+  const live = t.status === "ACTIVE";
+  const detailLink = (label: string) => (
+    <Link to={`/tournaments/${t.id}`} className="text-blue-400 hover:text-blue-300 text-sm underline">
+      {label}
+    </Link>
+  );
+
+  if (t.viewerCheckedIn) {
+    return (
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-green-400 text-sm font-medium">✓ Checked in</span>
+        {detailLink(live ? "View Bracket" : "Event page")}
+      </div>
+    );
+  }
+
+  if (t.viewerRegistered) {
+    return (
+      <div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-green-400 text-sm font-medium">✓ Registered</span>
+          {detailLink(live ? "View Bracket" : "Check in")}
+        </div>
+        {t.status === "REGISTRATION" && (
+          <p className="text-gray-500 text-xs mt-1.5">
+            Check in on the event page from 30 min before start.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  if (live) {
+    return <div className="flex justify-end">{detailLink("View Bracket")}</div>;
+  }
+
+  const entrantCount = t._count?.entries ?? 0;
+  const full = entrantCount >= t.maxEntrants;
+
+  if (t.status === "REGISTRATION" && !full && t.entryFee === 0) {
+    return (
+      <div className="flex items-center justify-between gap-2">
+        <button
+          onClick={() => onRegister(t)}
+          disabled={registering}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors disabled:opacity-50"
+        >
+          {registering ? "..." : "Register Free"}
+        </button>
+        {detailLink("Details")}
+      </div>
+    );
+  }
+
+  if (t.status === "REGISTRATION" && full) {
+    return (
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-yellow-300/90 text-sm font-medium">Bracket full</span>
+        {detailLink("Details")}
+      </div>
+    );
+  }
+
+  return <div className="flex justify-end">{detailLink("Details")}</div>;
+}
+
+/** Hero card for one region's nightly event: dual-timezone display rule —
+ *  always the REGION's local time, plus the viewer's local time when it
+ *  differs (suppressed when the wall clocks match). */
+function NightlyCard({ t, region, onRegister, registering }: {
+  t: Tournament;
+  region: TournamentRegion;
+  onRegister: (t: Tournament) => void;
+  registering: boolean;
+}) {
+  const entrantCount = t._count?.entries ?? 0;
+  const full = entrantCount >= t.maxEntrants;
+  const localLine = viewerTime(t.scheduledAt, region);
+
+  return (
+    <div
+      className={`bg-gray-800 rounded-xl p-5 border flex flex-col gap-3 ${
+        t.status === "ACTIVE" ? "border-yellow-700" : "border-gray-700"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-gray-400 font-semibold text-xs uppercase tracking-wider">
+          {REGIONS[region].label}
+        </span>
+        <StatusPill status={t.status} />
+      </div>
+
+      <div>
+        <Link
+          to={`/tournaments/${t.id}`}
+          className="text-white font-bold text-lg leading-snug hover:text-yellow-300"
+        >
+          {t.name}
+        </Link>
+        <p className="text-gray-500 text-xs mt-0.5">{regionDate(t.scheduledAt, region)}</p>
+      </div>
+
+      <div>
+        <p className="text-white text-sm font-medium">{regionTime(t.scheduledAt, region)}</p>
+        {localLine && <p className="text-gray-400 text-sm">{localLine}</p>}
+      </div>
+
+      <p className={`text-sm ${full ? "text-yellow-300/90" : "text-gray-400"}`}>
+        {entrantCount}/{t.maxEntrants} entrants
+      </p>
+
+      <div className="mt-auto pt-1">
+        <NightlyCardActions t={t} onRegister={onRegister} registering={registering} />
+      </div>
     </div>
   );
 }
@@ -62,6 +198,12 @@ function TournamentCard({ t, onRegister, registering }: {
           )}
 
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-400 mb-2">
+            {isKnownRegion(t.region) && (
+              <>
+                <span>{REGIONS[t.region].label}</span>
+                <span>·</span>
+              </>
+            )}
             <span>{formatDate(t.scheduledAt)}</span>
             <span>·</span>
             <span>{t.format === "DOUBLE_ELIM" ? "Double Elim" : "Single Elim"}</span>
@@ -70,32 +212,31 @@ function TournamentCard({ t, onRegister, registering }: {
             <span>·</span>
             <span>{entrantCount}/{t.maxEntrants} players</span>
           </div>
-
-          {isPaid && <PrizeBreakdown prizePool={t.prizePool} />}
         </div>
 
         <div className="flex flex-col items-end gap-2 shrink-0">
-          <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-            t.status === "REGISTRATION" ? "bg-blue-900 text-blue-300"
-            : t.status === "ACTIVE" ? "bg-yellow-900 text-yellow-300"
-            : t.status === "COMPLETED" ? "bg-gray-700 text-gray-400"
-            : "bg-gray-700 text-gray-400"
-          }`}>
-            {t.status === "REGISTRATION" ? "Open" : t.status === "ACTIVE" ? "Live" : t.status}
-          </span>
+          <StatusPill status={t.status} />
 
           {t.status === "REGISTRATION" && (
-            <button
-              onClick={() => onRegister(t)}
-              disabled={registering}
-              className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors disabled:opacity-50 ${
-                isPaid
-                  ? "bg-yellow-600 hover:bg-yellow-500 text-white"
-                  : "bg-blue-600 hover:bg-blue-700 text-white"
-              }`}
-            >
-              {registering ? "..." : isPaid ? `Enter — ${dollars(t.entryFee)}` : "Register Free"}
-            </button>
+            t.viewerRegistered ? (
+              <span className="text-green-400 text-sm font-medium">
+                {t.viewerCheckedIn ? "✓ Checked in" : "✓ Registered"}
+              </span>
+            ) : !isPaid ? (
+              <button
+                onClick={() => onRegister(t)}
+                disabled={registering}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors disabled:opacity-50"
+              >
+                {registering ? "..." : "Register Free"}
+              </button>
+            ) : (
+              // Stripe is dormant for the free-only release: legacy paid rows
+              // never expose a checkout entry point.
+              <span className="text-gray-500 text-xs text-right">
+                Paid entry returns with subscriptions
+              </span>
+            )
           )}
 
           {(t.status === "ACTIVE" || t.status === "COMPLETED") && (
@@ -114,7 +255,7 @@ function SuccessBanner() {
   if (!params.get("tournament_id")) return null;
   return (
     <div className="bg-green-900/40 border border-green-700 rounded-xl p-4 mb-6">
-      <p className="text-green-300 font-medium">You're registered! See you Saturday.</p>
+      <p className="text-green-300 font-medium">You're registered! See you tonight.</p>
     </div>
   );
 }
@@ -156,53 +297,72 @@ export default function Tournaments() {
     },
   });
 
-  const free = tournaments.filter((t) => t.entryFee === 0);
-  const paid = tournaments.filter((t) => t.entryFee > 0);
+  // Tonight's grid: the next not-yet-finished event per known region.
+  // Rows without a recognized region (older data, or the API change not
+  // deployed yet) never reach the hero grid — they stay in the list below.
+  const nightly = useMemo(() => {
+    const next = new Map<TournamentRegion, Tournament>();
+    const candidates = tournaments
+      .filter(
+        (t) =>
+          isKnownRegion(t.region) &&
+          (t.status === "UPCOMING" || t.status === "REGISTRATION" || t.status === "ACTIVE")
+      )
+      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+    for (const t of candidates) {
+      const region = t.region as TournamentRegion;
+      if (!next.has(region)) next.set(region, t);
+    }
+    return REGION_ORDER.flatMap((region) => {
+      const t = next.get(region);
+      return t ? [{ region, t }] : [];
+    });
+  }, [tournaments]);
+
+  const nightlyIds = new Set(nightly.map(({ t }) => t.id));
+  const rest = tournaments.filter((t) => !nightlyIds.has(t.id));
 
   if (isLoading) {
     return <div className="p-8 text-center text-gray-400">Loading tournaments...</div>;
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-6">
-      <h1 className="text-3xl font-bold text-white mb-1">Weekly Tournaments</h1>
+    <div className="max-w-4xl mx-auto p-6">
+      <h1 className="text-3xl font-bold text-white mb-1">Nightly Tournaments</h1>
       <p className="text-gray-400 mb-6">
-        Two tournaments every Saturday — one free, one paid with a prize pool.
+        A free 32-player bracket in every region, every night at 8 PM local.
       </p>
 
       <SuccessBanner />
 
-      {/* Paid */}
-      {paid.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-yellow-400 font-semibold text-sm uppercase tracking-wider mb-3">
-            Paid — Prize Pool
+      {/* Tonight's regional events */}
+      {nightly.length > 0 && (
+        <section className="mb-10">
+          <h2 className="text-green-400 font-semibold text-sm uppercase tracking-wider mb-3">
+            Tonight — Free, Open to All
           </h2>
-          <div className="space-y-4">
-            {paid.map((t) => (
-              <TournamentCard
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {nightly.map(({ region, t }) => (
+              <NightlyCard
                 key={t.id}
                 t={t}
+                region={region}
                 onRegister={(t) => register.mutate(t)}
                 registering={registeringId === t.id}
               />
             ))}
           </div>
-          <p className="text-gray-600 text-xs mt-3">
-            Prize split: 50% 1st · 25% 2nd · 10% 3rd · 15% platform fee.
-            Payouts processed manually within 48h of tournament completion.
-          </p>
         </section>
       )}
 
-      {/* Free */}
-      {free.length > 0 && (
+      {/* Everything else: past nightlies, region-less legacy rows, admin tests */}
+      {rest.length > 0 && (
         <section className="mb-8">
-          <h2 className="text-green-400 font-semibold text-sm uppercase tracking-wider mb-3">
-            Free — Open to All
+          <h2 className="text-gray-400 font-semibold text-sm uppercase tracking-wider mb-3">
+            {nightly.length > 0 ? "Other Tournaments" : "Tournaments"}
           </h2>
           <div className="space-y-4">
-            {free.map((t) => (
+            {rest.map((t) => (
               <TournamentCard
                 key={t.id}
                 t={t}

@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { getSocket } from "../lib/socket";
+import { REGIONS, isKnownRegion, regionDate, regionTime, viewerTime } from "../lib/regions";
 import { useAuthStore } from "../hooks/useAuth";
 import {
   ReplayVerification,
@@ -311,6 +312,9 @@ export default function TournamentDetail() {
 
   // Defensive: role may be missing from older /auth/me payloads → not admin.
   const isAdmin = user?.role === "ADMIN";
+  // Older rows have no region (or an unrecognized one) → plain local date.
+  const region = isKnownRegion(t.region) ? t.region : null;
+  const viewerLocalLine = region ? viewerTime(t.scheduledAt, region) : null;
   const myEntry = user ? t.entries.find((e) => e.userId === user.id) : undefined;
   const checkinOpensAt =
     new Date(t.scheduledAt).getTime() - CHECKIN_OPENS_MINUTES_BEFORE * 60_000;
@@ -341,8 +345,22 @@ export default function TournamentDetail() {
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge(t.status)}`}>
             {t.status}
           </span>
+          {region && (
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-700 text-gray-300">
+              {REGIONS[region].label}
+            </span>
+          )}
         </div>
-        <p className="text-gray-400 text-sm mt-1">{formatDate(t.scheduledAt)}</p>
+        {region ? (
+          // Dual-timezone rule: always the region's local time; the viewer's
+          // own time appended only when their wall clock differs.
+          <p className="text-gray-400 text-sm mt-1">
+            {regionDate(t.scheduledAt, region)} · {regionTime(t.scheduledAt, region)}
+            {viewerLocalLine && <span className="text-gray-500"> · {viewerLocalLine}</span>}
+          </p>
+        ) : (
+          <p className="text-gray-400 text-sm mt-1">{formatDate(t.scheduledAt)}</p>
+        )}
         {t.description && <p className="text-gray-400 text-sm mt-1">{t.description}</p>}
         <p className="text-gray-500 text-xs mt-2">
           Playable from inside Melee: the Randall's client → Online Play → Find Tournament
@@ -352,13 +370,21 @@ export default function TournamentDetail() {
       {t.status === "REGISTRATION" && (
         <div className="flex items-center gap-3 flex-wrap">
           {!myEntry ? (
-            <button
-              onClick={() => register.mutate()}
-              disabled={register.isPending}
-              className="bg-green-700 hover:bg-green-600 text-white text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-50"
-            >
-              {register.isPending ? "Registering…" : t.entryFee > 0 ? "Register (paid)" : "Register"}
-            </button>
+            t.entryFee === 0 ? (
+              <button
+                onClick={() => register.mutate()}
+                disabled={register.isPending}
+                className="bg-green-700 hover:bg-green-600 text-white text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-50"
+              >
+                {register.isPending ? "Registering…" : "Register"}
+              </button>
+            ) : (
+              // Free-only release: Stripe is dormant, so legacy paid rows
+              // expose no checkout entry point.
+              <span className="text-gray-500 text-sm">
+                Paid entry returns with subscriptions.
+              </span>
+            )
           ) : !myEntry.checkedInAt ? (
             <button
               onClick={() => checkin.mutate()}
