@@ -1,3 +1,29 @@
+/**
+ * routes/series.ts — Series state management and per-game result reporting.
+ *
+ * A Series represents a BO3 or BO5 match between two players. Series are
+ * created by accepting a challenge (routes/challenges.ts) or via the socket
+ * event challenge:accept (plugins/socket.ts). Either participant can report
+ * game results; the series completes automatically when one player reaches the
+ * win threshold (BO3: 2, BO5: 3).
+ *
+ * Two reporting paths exist:
+ *   PATCH /:id/score  — manual report (method + character + stage data optional)
+ *   POST  /:id/replay — upload a .slp file; server parses winner automatically
+ *
+ * Both paths create a Game row and update the Series win counters atomically,
+ * then emit series:update to both players via Socket.io.
+ *
+ * Endpoints (all under /api/series):
+ *   GET   /:id          — fetch series with players and game history (JWT)
+ *   PATCH /:id/score    — report a game result manually (participant; JWT)
+ *   POST  /:id/replay   — upload .slp and auto-report result (participant; JWT)
+ *
+ * Socket.io events emitted:
+ *   series:update { ...Series, player1, player2 }
+ *       → emitted to both `user:<player1Id>` and `user:<player2Id>` on score
+ *         or replay submission.
+ */
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
@@ -6,7 +32,14 @@ import { parseReplayBuffer } from "../lib/slippi";
 import { io } from "../index";
 
 export async function seriesRoutes(app: FastifyInstance) {
-  // GET /api/series/:id
+  /**
+   * GET /api/series/:id
+   * Auth: JWT required (any authenticated user can view; not restricted to participants).
+   * Params: id — series id.
+   * Response 200: Series with player1 { id, username }, player2 { id, username },
+   *   and games[] (all Game rows for this series).
+   * Response 404: series not found.
+   */
   app.get("/:id", { preHandler: [requireAuth] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const series = await prisma.series.findUnique({
@@ -21,7 +54,28 @@ export async function seriesRoutes(app: FastifyInstance) {
     return series;
   });
 
-  // PATCH /api/series/:id/score — report a game result
+  /**
+   * PATCH /api/series/:id/score
+   * Auth: JWT required (must be a participant — player1 or player2).
+   * Params: id — series id.
+   * Body: {
+   *   winnerId: string,
+   *   p1Character?: number,  — Slippi character id for player 1
+   *   p2Character?: number,  — Slippi character id for player 2
+   *   stageId?: number,      — Slippi stage id
+   * }
+   * Response 200: { series: updatedSeries, game: createdGame }
+   *   Series includes player1 + player2 { id, username }.
+   * Response 400: validation error.
+   * Response 403: caller is not a participant.
+   * Response 404: series not found.
+   * Response 409: series is not IN_PROGRESS.
+   * Side effects (atomic transaction):
+   *   - Creates a Game row (gameNumber = total games played after this one).
+   *   - Updates Series win counters; marks COMPLETED + sets winnerId/completedAt
+   *     if the win threshold is reached.
+   *   - Emits series:update to both players' Socket.io rooms.
+   */
   app.patch(
     "/:id/score",
     { preHandler: [requireAuth] },
@@ -93,7 +147,26 @@ export async function seriesRoutes(app: FastifyInstance) {
     }
   );
 
-  // POST /api/series/:id/replay — upload .slp file for verification
+  /**
+   * POST /api/series/:id/replay
+   * Auth: JWT required (must be a participant).
+   * Params: id — series id.
+   * Body: multipart/form-data — single .slp file (max 50 MB from global config).
+   * Response 200: { verified: true, series?: updatedSeries }
+   *   series is included only when the series was IN_PROGRESS and this game
+   *   advanced (or completed) it; absent when already completed.
+   * Response 400: no file uploaded.
+   * Response 403: caller is not a participant.
+   * Response 404: series not found.
+   * Response 422: replay player names don't match participants, winner
+   *   can't be determined, or winner doesn't map to either player.
+   * Side effects (when series is IN_PROGRESS, atomic transaction):
+   *   - Creates a Game row with character/stage/duration parsed from the .slp.
+   *   - Updates Series win counters (same logic as PATCH /:id/score).
+   *   - Emits series:update to both players' rooms.
+   * Note: this route does NOT persist the .slp file to storage — unlike the
+   *   tournament replay route (routes/replays.ts), which calls saveReplayFile().
+   */
   app.post(
     "/:id/replay",
     { preHandler: [requireAuth] },

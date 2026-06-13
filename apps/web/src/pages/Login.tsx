@@ -1,3 +1,35 @@
+/**
+ * Login page
+ *
+ * Route:    /login  (public, no auth wrapper in App.tsx)
+ * Auth:     Public — no RequireAuth (users land here after being bounced by
+ *           the api.ts 401 interceptor or by RequireAuth).
+ *
+ * Purpose:  Combined sign-in / registration form. A tab toggle switches
+ *           between "login" and "register" modes; the form fields and the
+ *           API endpoint adapt accordingly. On success the JWT token is
+ *           persisted via useAuthStore.setAuth and the user is navigated to
+ *           /arena.
+ *
+ * Data dependencies:
+ *   - POST /auth/login     — body: { email, password }
+ *                            returns { user: User, token: string }
+ *   - POST /auth/register  — body: { email, password, username }
+ *                            returns { user: User, token: string }
+ *
+ * Local state:
+ *   - tab: "login" | "register" — drives which fields show and which
+ *     endpoint is called. Switching tabs also clears any error message.
+ *   - error: server error string shown inline above the submit button.
+ *   - loading: disables the submit button and shows "...".
+ *
+ * UI states:
+ *   - idle login tab: email + password fields, forgot-password link.
+ *   - idle register tab: username + email + password fields.
+ *   - loading: submit button disabled.
+ *   - error: red inline error message.
+ */
+
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";

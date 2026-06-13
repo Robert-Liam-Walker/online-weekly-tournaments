@@ -1,3 +1,84 @@
+/**
+ * bracketService.ts — Bracket lifecycle: start, result reporting, DQ, no-shows.
+ *
+ * Purpose: Bridge the pure bracket engine (packages/shared/bracket.ts) with the
+ * database, and expose the high-level operations that tournament routes call.
+ *
+ * Core design — DB as source of truth:
+ *   The bracket engine state is NEVER stored directly. Instead it is always
+ *   rebuilt by replaying the seeded player list and all recorded TournamentMatch
+ *   results. Every mutation is a read-modify-write:
+ *     1. rebuildEngine  — load seeds from TournamentEntry, load results from
+ *                         TournamentMatch, replay them into the engine.
+ *     2. (apply mutation) — call engine function (reportResult, etc.)
+ *     3. persistEngine  — upsert all matches from the updated engine back to
+ *                         TournamentMatch rows.
+ *   Because this is a read-modify-write, all mutations hold the per-tournament
+ *   Redis mutex (tournamentLock.ts). Without it, concurrent reports for the same
+ *   tournament both read the same snapshot and the last persist silently wins.
+ *
+ * matchKey semantics (mirrors packages/shared/bracket.ts):
+ *   "W{round}-{n}"  — winners bracket match (e.g. "W1-1", "W2-3").
+ *   "L{round}-{n}"  — losers bracket match.
+ *   "GF"            — grand final.
+ *   "GFR"           — grand final bracket reset (cancelled if winners-side finalist wins GF).
+ *
+ * Seeding and byes:
+ *   Only checked-in, non-DQ'd entries enter the bracket. Seeds are locked in
+ *   at start time (1..n in check-in order, using any pre-assigned seed values
+ *   for ordering). Entries beyond the bracket size (next power of two) receive
+ *   bye slots; bye matches auto-complete in the engine and cascade forward.
+ *
+ * readyAt bookkeeping:
+ *   TournamentMatch.readyAt is stamped exactly once — when the match first
+ *   becomes playable (both players set, no winner). It is never cleared or
+ *   updated, so it represents the moment the match opened. The no-show sweep
+ *   uses readyAt as its reference time.
+ *
+ * DQ cascade:
+ *   dqTournamentEntry stamps dqAt on the entry and, if the tournament is ACTIVE,
+ *   calls sweepDqForfeits in a loop: find the first ready match involving a DQ'd
+ *   entry, report the opponent as winner, repeat. The loop terminates when no
+ *   ready match contains a DQ'd player, or when the tournament completes.
+ *   The lock is held for the entire cascade; callers that already hold the lock
+ *   use dqTournamentEntryUnlocked to avoid a deadlock (the lock is not reentrant).
+ *
+ * No-show sweep (sweepNoShows):
+ *   For every ready match with a readyAt older than `timeoutMinutes`, checks
+ *   Redis presence (lib/presence.ts — refreshed by the game client's /ready poll).
+ *   Absent players are auto-DQ'd via dqTournamentEntryUnlocked. All decisions use
+ *   a snapshot taken at sweep start; matches that become ready mid-sweep get a
+ *   fresh readyAt and a fresh timeout window.
+ *
+ * Rendezvous integration:
+ *   getReadyTournamentMatches mints (or refreshes) a rendezvous ticket for the
+ *   requesting player when RENDEZVOUS_HOST + RENDEZVOUS_UDP_PORT are configured.
+ *   The ticket is additive — older clients that predate the field ignore it.
+ *   Every code path that ends a match (applyResult, DQ cascade, cancel) calls
+ *   invalidateRendezvous so clients cannot pair into a decided match.
+ *
+ * Key exports:
+ *   startTournament            — seed, generate bracket, flip status to ACTIVE.
+ *   reportTournamentResult     — record a result and advance the bracket.
+ *   dqTournamentEntry          — disqualify a player; cascade forfeits if ACTIVE.
+ *   sweepNoShows               — auto-DQ absent players in ready matches.
+ *   getReadyTournamentMatches  — ready matches for a tournament, with optional
+ *                                rendezvous tickets for the requesting player.
+ *   checkinWindowOpen          — true when check-in is open (30 min before start).
+ *   nextReadyAt                — pure helper for readyAt stamp logic (unit-tested).
+ *   decideNoShowDqs            — pure helper for no-show decision (unit-tested).
+ *   NoShowMatchState / NoShowSweepResult — types for no-show helpers.
+ *
+ * Invariants:
+ *   - All mutations (start, report, DQ, sweep) hold withTournamentLock.
+ *   - The lock is NOT reentrant; never nest withTournamentLock calls on the same
+ *     tournament. Use *Unlocked variants to compose inside an existing lock.
+ *   - rebuildEngine must always succeed cleanly: if recorded results do not
+ *     replay (e.g. a result was written without the lock), it throws. This is
+ *     a programming error, not a user error.
+ *   - Cancelled matches (GFR when not needed) are deleted from TournamentMatch
+ *     in persistEngine to keep the DB tidy.
+ */
 import {
   DEBracket,
   generateDoubleElim,
@@ -25,12 +106,23 @@ import {
 // without it, two concurrent reports of the same match both rebuild from the
 // same snapshot and the last persist silently wins.
 
+/** Minutes before scheduledAt at which check-in opens. */
 const CHECKIN_OPENS_MINUTES_BEFORE = 30;
 
+/**
+ * True when check-in is open for a tournament with the given schedule.
+ * @param scheduledAt - the tournament's scheduled start time.
+ * @param now         - reference instant (defaults to Date.now()).
+ */
 export function checkinWindowOpen(scheduledAt: Date, now = new Date()): boolean {
   return now.getTime() >= scheduledAt.getTime() - CHECKIN_OPENS_MINUTES_BEFORE * 60_000;
 }
 
+/**
+ * Load checked-in player IDs in seed order for bracket generation.
+ * Only entries with both checkedInAt and seed set are included (seed is locked
+ * in by startTournamentUnlocked before rebuildEngine is called).
+ */
 async function loadSeededPlayerIds(tournamentId: string): Promise<string[]> {
   const entries = await prisma.tournamentEntry.findMany({
     where: { tournamentId, checkedInAt: { not: null }, seed: { not: null } },
@@ -39,7 +131,15 @@ async function loadSeededPlayerIds(tournamentId: string): Promise<string[]> {
   return entries.map((e) => e.userId);
 }
 
-/** Rebuild the engine from seeds + recorded results (replay until stable) */
+/**
+ * Rebuild the bracket engine from seeds + all recorded results.
+ * Replays TournamentMatch rows with winnerId set (skipping bye-only results that
+ * the engine re-derives itself). Iterates until no more results can be applied
+ * (handles matches that unlock only after earlier results are replayed).
+ *
+ * @throws {Error} if any recorded results remain unreplayable after convergence —
+ *   this indicates a data integrity issue (result written outside the lock).
+ */
 async function rebuildEngine(tournamentId: string): Promise<DEBracket> {
   const playerIds = await loadSeededPlayerIds(tournamentId);
   const bracket = generateDoubleElim(playerIds);
@@ -76,6 +176,11 @@ async function rebuildEngine(tournamentId: string): Promise<DEBracket> {
  * readyAt bookkeeping for a persisted match: stamp `now` the first time a
  * match becomes playable (both players set, no winner, no prior stamp);
  * preserve any existing stamp otherwise. Pure — unit tested.
+ *
+ * @param existingReadyAt - the current DB value (may be null/undefined).
+ * @param isReadyNow      - whether the match is playable in the current engine state.
+ * @param now             - the timestamp to use for a new stamp.
+ * @returns The readyAt value to persist (existing or newly stamped, never cleared).
  */
 export function nextReadyAt(
   existingReadyAt: Date | null | undefined,
@@ -85,7 +190,13 @@ export function nextReadyAt(
   return existingReadyAt ?? (isReadyNow ? now : null);
 }
 
-/** Mirror the full engine state into TournamentMatch rows */
+/**
+ * Mirror the full engine state into TournamentMatch rows.
+ * Upserts every match in the bracket; deletes cancelled matches (e.g. GFR when
+ * the winners-side finalist wins GF straight). Preserves existing readyAt stamps
+ * (stamped once, never cleared).
+ * All operations run in a single Prisma transaction for atomicity.
+ */
 async function persistEngine(tournamentId: string, bracket: DEBracket): Promise<void> {
   const existing = await prisma.tournamentMatch.findMany({
     where: { tournamentId },
@@ -127,7 +238,12 @@ async function persistEngine(tournamentId: string, bracket: DEBracket): Promise<
 /**
  * Close check-in and start the tournament: seed checked-in players (by
  * pre-assigned seed, then registration order), generate the bracket, and
- * flip status. Cancels if fewer than 2 players checked in.
+ * flip status to ACTIVE. Cancels if fewer than 2 players checked in.
+ *
+ * @returns { started: true } on success; { started: false, reason } if the
+ *   tournament is already past REGISTRATION or has fewer than 2 check-ins.
+ *
+ * Acquires the per-tournament lock.
  */
 export async function startTournament(tournamentId: string): Promise<{ started: boolean; reason?: string }> {
   return withTournamentLock(tournamentId, () => startTournamentUnlocked(tournamentId));
@@ -177,7 +293,13 @@ async function startTournamentUnlocked(
   return { started: true };
 }
 
-/** Rebuild, apply one result, persist; finalize placements when complete. No lock. */
+/**
+ * Rebuild, apply one result, persist; finalize placements when complete.
+ * Must be called while holding the tournament lock (no lock inside).
+ * Invalidates the match's rendezvous so no client can pair into a decided match.
+ *
+ * @returns { complete: true } when the tournament finishes (placements recorded).
+ */
 async function applyResult(
   tournamentId: string,
   matchKey: string,
@@ -216,6 +338,10 @@ async function applyResult(
  * a DQ'd player who later lands in a newly-ready match (e.g. dropping into
  * losers) is forfeited as the bracket progresses. Caller must hold the lock
  * and ensure the tournament is ACTIVE.
+ *
+ * If both players in a ready match are DQ'd, p2 advances (deterministic) and
+ * is forfeited again downstream — the cascade terminates when no more ready
+ * matches involve DQ'd entries, or when the tournament completes.
  */
 async function sweepDqForfeits(
   tournamentId: string
@@ -244,7 +370,16 @@ async function sweepDqForfeits(
   }
 }
 
-/** Record a result and advance the bracket; completes the tournament when done */
+/**
+ * Record a result and advance the bracket; completes the tournament when done.
+ * After the primary result, immediately sweeps any newly-ready matches that
+ * involve already-DQ'd entries (cascade forfeits). Holds the tournament lock.
+ *
+ * @param tournamentId - the tournament.
+ * @param matchKey     - the match to record a result for.
+ * @param winnerId     - the winning player's user ID.
+ * @returns { complete: true } when the tournament finishes.
+ */
 export async function reportTournamentResult(
   tournamentId: string,
   matchKey: string,
@@ -265,6 +400,10 @@ export async function reportTournamentResult(
  * (ACTIVE) it additionally forfeits every ready match involving the player,
  * looping until no ready match involves a DQ'd entry; this can complete the
  * tournament. The whole operation holds the per-tournament mutex.
+ *
+ * @param tournamentId - the tournament.
+ * @param userId       - the player to disqualify.
+ * @returns Number of matches forfeited and whether the tournament completed.
  */
 export async function dqTournamentEntry(
   tournamentId: string,
@@ -279,6 +418,9 @@ export async function dqTournamentEntry(
  * DQ internals without the mutex — composed by callers that already hold it
  * (dqTournamentEntry, sweepNoShows). The lock is not reentrant, so acquiring
  * it twice on the same tournament would deadlock until the acquire timeout.
+ *
+ * @param tournamentId - the tournament.
+ * @param userId       - the player to disqualify.
  */
 async function dqTournamentEntryUnlocked(
   tournamentId: string,
@@ -312,6 +454,13 @@ export interface NoShowMatchState {
  *   - exactly one present → DQ the absent player
  *   - neither present → DQ both (the forfeit cascade resolves the bracket)
  * Already-DQ'd entries are never DQ'd again.
+ *
+ * @param match          - the match row (player IDs, winnerId, readyAt).
+ * @param presence       - current presence state for each player.
+ * @param alreadyDqd     - set of already-DQ'd userIds (never DQ'd twice).
+ * @param timeoutMinutes - minutes a ready match may sit before sweep fires.
+ * @param now            - reference instant for timeout comparison.
+ * @returns Array of userIds to DQ (may be empty, one, or two).
  */
 export function decideNoShowDqs(
   match: NoShowMatchState,
@@ -352,6 +501,10 @@ export interface NoShowSweepResult {
  * timeout window. DQs keep applying after completion (dqAt still stamps) so
  * every decided no-show is recorded even when an earlier cascade finishes
  * the tournament.
+ *
+ * @param tournamentId   - the tournament to sweep.
+ * @param timeoutMinutes - minutes a ready match may sit (0 = disabled).
+ * @returns Summary of DQ'd players, forfeit count, and completion flag.
  */
 export async function sweepNoShows(
   tournamentId: string,
@@ -411,6 +564,10 @@ export async function sweepNoShows(
  * configured (RENDEZVOUS_HOST + RENDEZVOUS_UDP_PORT), that match carries a
  * personalized `rendezvous` ticket — additive: clients that predate it
  * ignore the extra field.
+ *
+ * @param tournamentId - the tournament to query.
+ * @param viewerId     - optional authenticated user ID; enables rendezvous tickets.
+ * @returns Array of ready matches with player info and optional rendezvous.
  */
 export async function getReadyTournamentMatches(tournamentId: string, viewerId?: string) {
   const bracket = await rebuildEngine(tournamentId);

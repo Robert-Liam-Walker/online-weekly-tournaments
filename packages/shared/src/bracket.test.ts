@@ -1,3 +1,23 @@
+/**
+ * bracket.test.ts — Unit tests for the pure double-elimination engine.
+ *
+ * Coverage:
+ *   - Structure: W round 1 seed order for 8 players; bye auto-completion for
+ *     non-power-of-two entrant counts; validation errors for bad inputs.
+ *   - Known 8-player path: seed-1-always-wins path verifies GFR cancellation
+ *     and placement tiers; losers-side upset verifies bracket reset and
+ *     that champion/runner-up have at most 1 / exactly 2 losses.
+ *   - Random simulations: 10 entrant counts × 50 random seeds each, using a
+ *     deterministic PRNG (Mulberry32) so failures are reproducible. Each
+ *     simulation verifies the double-elimination invariants:
+ *       - Champion lost at most once; every other player lost exactly twice.
+ *       - getPlacements() covers every real player exactly once, champion first.
+ *       - The bracket always has at least one ready match until completion
+ *         (no deadlock).
+ *
+ * IMPORTANT: Do not modify assertions, test cases, or helper logic.
+ * Top-of-file comment additions only.
+ */
 import { describe, expect, it } from "vitest";
 import {
   DEBracket,

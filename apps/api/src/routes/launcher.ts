@@ -1,16 +1,29 @@
+/**
+ * routes/launcher.ts — Launcher update manifest endpoint.
+ *
+ * The FoxTrot launcher polls GET /api/launcher/manifest on startup to discover
+ * the latest Dolphin builds, game-file bundle, and the minimum supported
+ * launcher version. All values come from environment variables so new builds
+ * are rolled out by updating env vars, not by redeploying code.
+ *
+ * Endpoint:
+ *   GET /api/launcher/manifest  — public (no auth). Cached 60 s by CDN/clients.
+ *
+ * Environment variables read:
+ *   FOXTROT_DOLPHIN_VERSION              — netplay Dolphin version string
+ *   FOXTROT_DOLPHIN_WIN_URL              — netplay Dolphin Windows download URL
+ *   FOXTROT_DOLPHIN_PLAYBACK_VERSION     — playback Dolphin version string
+ *   FOXTROT_DOLPHIN_PLAYBACK_WIN_URL     — playback Dolphin Windows download URL
+ *   FOXTROT_GAMEFILES_VERSION            — game files bundle version string
+ *   FOXTROT_GAMEFILES_URL                — game files bundle download URL
+ *   FOXTROT_GAMEFILES_SHA256             — SHA-256 checksum of the game files bundle
+ *   FOXTROT_LAUNCHER_MIN_VERSION         — minimum launcher version string
+ *
+ * Each section (dolphin, gameFiles, launcher) is returned as null when its
+ * required variables are absent, so the launcher can skip missing sections
+ * rather than failing. The `env()` helper filters out blank/whitespace values.
+ */
 import { FastifyInstance } from "fastify";
-
-// Public manifest the FoxTrot launcher polls to discover the current Dolphin
-// builds, game-file bundle, and minimum supported launcher version.
-//
-// Every value comes from the environment so releases are cut by updating env
-// vars, not redeploying code:
-//   FOXTROT_DOLPHIN_VERSION / FOXTROT_DOLPHIN_WIN_URL                (netplay)
-//   FOXTROT_DOLPHIN_PLAYBACK_VERSION / FOXTROT_DOLPHIN_PLAYBACK_WIN_URL
-//   FOXTROT_GAMEFILES_VERSION / FOXTROT_GAMEFILES_URL / FOXTROT_GAMEFILES_SHA256
-//   FOXTROT_LAUNCHER_MIN_VERSION
-// Any section whose variables are missing is returned as null so the launcher
-// can skip it cleanly.
 
 function env(name: string): string | undefined {
   const value = process.env[name];
@@ -18,6 +31,22 @@ function env(name: string): string | undefined {
 }
 
 export async function launcherRoutes(app: FastifyInstance) {
+  /**
+   * GET /api/launcher/manifest
+   * Auth: public (no JWT required).
+   * Response 200 (Cache-Control: public, max-age=60):
+   *   {
+   *     manifestVersion: 1,
+   *     dolphin: {
+   *       netplay:  { version, win32 } | null,
+   *       playback: { version, win32 } | null,
+   *     } | null,
+   *     gameFiles: { version, url, sha256 } | null,
+   *     launcher:  { minimumVersion } | null,
+   *   }
+   * All sections are null when their env vars are not set.
+   * manifestVersion is a stable integer for forward-compatibility parsing.
+   */
   app.get("/manifest", async (_request, reply) => {
     const netplayVersion = env("FOXTROT_DOLPHIN_VERSION");
     const netplayWin32 = env("FOXTROT_DOLPHIN_WIN_URL");

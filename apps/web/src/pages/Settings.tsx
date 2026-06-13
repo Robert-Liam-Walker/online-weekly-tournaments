@@ -1,3 +1,42 @@
+/**
+ * Settings page
+ *
+ * Route:    /settings  (rendered inside RequireAuth + Layout in App.tsx)
+ * Auth:     Behind RequireAuth.
+ *
+ * Purpose:  User account settings. Displays profile info (username, email,
+ *           member-since date), Slippi replays folder connection (Chromium
+ *           only via File System Access API), and subscription status with
+ *           a billing portal link (Stripe; currently shown only to active
+ *           subscribers — free-launch mode hides the upgrade CTA).
+ *
+ * Data dependencies:
+ *   - GET  /auth/me              — UserProfile (id, username, email,
+ *                                  subscriptionStatus, subscriptionEndsAt,
+ *                                  createdAt)
+ *   - POST /subscriptions/portal — returns { url } for Stripe billing portal
+ *   Query key: ["me"]
+ *
+ * File System Access integration:
+ *   - loadSlippiFolder() (lib/slippiFolder) — reads saved handle from
+ *     IndexedDB on mount; sets folderName state for display.
+ *   - showDirectoryPicker() — Chromium-only; prompts for folder selection;
+ *     saved via saveSlippiFolder(). Silently ignores user cancellation.
+ *   - clearSlippiFolder() — removes the handle from IndexedDB.
+ *   The entire Slippi section is hidden on non-FSA browsers (Firefox, Safari).
+ *
+ * Local state:
+ *   - portalLoading / portalError: for the billing portal redirect.
+ *   - folderName: display name of the connected Slippi folder (or null).
+ *
+ * UI states:
+ *   - isLoading: full-page "Loading...".
+ *   - profile null after load: renders nothing (should not happen in practice).
+ *   - Subscription section:
+ *     - ACTIVE: "Manage Billing" button → Stripe portal.
+ *     - FREE/PAST_DUE/CANCELED: "Subscriptions are coming soon" note.
+ */
+
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/api";

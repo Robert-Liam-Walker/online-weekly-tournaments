@@ -1,3 +1,36 @@
+/**
+ * routes/tournaments.ts — Tournament lifecycle, bracket management, and admin operations.
+ *
+ * Tournament status lifecycle:
+ *   UPCOMING → REGISTRATION → ACTIVE → COMPLETED
+ *                           ↘ CANCELED (from UPCOMING or REGISTRATION only)
+ *
+ * All new admin-created tournaments start in REGISTRATION immediately
+ * (not UPCOMING) because there is no automated promotion path from UPCOMING.
+ *
+ * Endpoints (all under /api/tournaments):
+ *   GET  /                              — list all tournaments (public; JWT enriches with viewer state)
+ *   GET  /:id                           — full bracket detail (JWT)
+ *   POST /:id/register                  — register for a tournament (JWT; free=immediate, paid=Stripe)
+ *   POST /                              — create a tournament (ADMIN)
+ *   POST /:id/cancel                    — cancel a tournament (ADMIN; UPCOMING/REGISTRATION only)
+ *   POST /:id/checkin                   — check in for a tournament (JWT; opens 30 min before start)
+ *   POST /:id/start                     — manually start the tournament and generate the bracket (JWT)
+ *   GET  /:id/ready                     — matches ready for the authenticated user to play (JWT; heartbeat)
+ *   POST /:id/matches/:matchKey/report  — report a match result (participant; JWT)
+ *   POST /:id/entries/:userId/dq        — disqualify a player (ADMIN)
+ *   POST /:id/matches/:matchKey/override — TO override for a stuck match (ADMIN)
+ *
+ * Paid tournaments (entryFee > 0) are feature-flagged behind PAID_EVENTS_ENABLED=true
+ * and use Stripe Checkout (mode: "payment"). Entry is confirmed by the webhook
+ * handler in routes/webhooks.ts, not by the registration response.
+ *
+ * Prize split constants (PRIZE_SPLIT) are exported for reference from other modules.
+ *
+ * /ready doubles as a liveness heartbeat: each poll calls markPresent() so the
+ * no-show sweep knows who is actually present. This is fire-and-forget and must
+ * never add latency to the poll response.
+ */
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
@@ -23,9 +56,18 @@ export function paidEventsEnabled(): boolean {
 }
 
 export async function tournamentRoutes(app: FastifyInstance) {
-  // GET /api/tournaments — list all. Public; if a JWT is supplied the
-  // response includes the viewer's registration/check-in state per event
-  // (the game client relies on this).
+  /**
+   * GET /api/tournaments
+   * Auth: public (JWT is optional; if present, the response is enriched).
+   * Response 200: Tournament[] (ordered by scheduledAt asc). Each entry includes
+   *   _count.entries. If a valid JWT is present, each entry also includes:
+   *     viewerRegistered: boolean
+   *     viewerCheckedIn: boolean
+   *     viewerPlacement: number | null
+   *   Without a JWT all three fields are false/null.
+   * Note: anonymous requests still get the full tournament list; the JWT check
+   *   is wrapped in a try/catch so a missing/invalid token is not an error.
+   */
   app.get("/", async (request) => {
     let viewerId: string | null = null;
     try {
@@ -60,7 +102,14 @@ export async function tournamentRoutes(app: FastifyInstance) {
     }));
   });
 
-  // GET /api/tournaments/:id — full bracket detail
+  /**
+   * GET /api/tournaments/:id
+   * Auth: JWT required.
+   * Params: id.
+   * Response 200: Tournament with entries[] (each including user { id, username })
+   *   and matches[] ordered by [round asc, matchNumber asc], each including series.
+   * Response 404: tournament not found.
+   */
   app.get("/:id", { preHandler: [requireAuth] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const tournament = await prisma.tournament.findUnique({
@@ -81,9 +130,22 @@ export async function tournamentRoutes(app: FastifyInstance) {
     return tournament;
   });
 
-  // POST /api/tournaments/:id/register
-  // Free tournament → register immediately
-  // Paid tournament → return Stripe checkout URL; entry created by webhook
+  /**
+   * POST /api/tournaments/:id/register
+   * Auth: JWT required.
+   * Params: id.
+   * Free tournament (entryFee === 0):
+   *   Response 201: { entry: TournamentEntry } (includes user { id, username }).
+   *   Side effects: creates TournamentEntry; emits tournament update event.
+   * Paid tournament (entryFee > 0, PAID_EVENTS_ENABLED=true):
+   *   Response 200: { checkoutUrl: string } — Stripe Checkout URL.
+   *   Side effects: creates Stripe Customer if needed; creates Checkout session.
+   *   Entry is created by the webhook on checkout.session.completed.
+   * Response 400: paid events not yet available (feature flag off).
+   * Response 404: tournament or user not found.
+   * Response 409: tournament not in REGISTRATION status, tournament full,
+   *   or player already registered.
+   */
   app.post("/:id/register", { preHandler: [requireAuth] }, async (request, reply) => {
     const userId = (request.user as { id: string }).id;
     const { id } = request.params as { id: string };
@@ -154,7 +216,23 @@ export async function tournamentRoutes(app: FastifyInstance) {
     return { checkoutUrl: session.url };
   });
 
-  // POST /api/tournaments — create tournament (admins only)
+  /**
+   * POST /api/tournaments
+   * Auth: ADMIN required.
+   * Body: {
+   *   name: string (3-100),
+   *   description?: string (max 500),
+   *   scheduledAt: ISO 8601 datetime string,
+   *   format?: "SINGLE_ELIM"|"DOUBLE_ELIM" (default: "SINGLE_ELIM"),
+   *   seriesFormat?: "BO3"|"BO5" (default: "BO5"),
+   *   maxEntrants?: integer 4-256 (default: 64),
+   *   entryFee?: integer cents ≥ 0 (default: 0),
+   * }
+   * Response 201: the created Tournament row.
+   * Response 400: validation error, or entryFee > 0 when PAID_EVENTS_ENABLED is false.
+   * Note: status is set to REGISTRATION immediately (not UPCOMING) because
+   *   there is no automated promotion path from UPCOMING.
+   */
   app.post("/", { preHandler: [requireAdmin] }, async (request, reply) => {
     const schema = z.object({
       name: z.string().min(3).max(100),
@@ -183,8 +261,16 @@ export async function tournamentRoutes(app: FastifyInstance) {
     return reply.code(201).send(tournament);
   });
 
-  // POST /api/tournaments/:id/cancel — TO action. Only events that haven't
-  // produced results can be canceled; started/finished brackets are immutable.
+  /**
+   * POST /api/tournaments/:id/cancel
+   * Auth: ADMIN required.
+   * Params: id.
+   * Response 200: { tournament: updatedTournament }
+   * Response 404: tournament not found.
+   * Response 409: tournament is not in UPCOMING or REGISTRATION status
+   *   (started/finished brackets are immutable).
+   * Side effects: sets status to CANCELED; emits tournament "canceled" event.
+   */
   app.post("/:id/cancel", { preHandler: [requireAdmin] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const tournament = await prisma.tournament.findUnique({ where: { id } });
@@ -200,7 +286,16 @@ export async function tournamentRoutes(app: FastifyInstance) {
     return { tournament: updated };
   });
 
-  // POST /api/tournaments/:id/checkin — opens 30 min before scheduledAt
+  /**
+   * POST /api/tournaments/:id/checkin
+   * Auth: JWT required (must be registered for the tournament).
+   * Params: id.
+   * Response 200: { entry: updatedTournamentEntry } with checkedInAt set.
+   * Response 404: tournament not found, or player not registered.
+   * Response 409: tournament not in REGISTRATION status, check-in window not
+   *   open yet (opens 30 min before scheduledAt), or already checked in.
+   * Side effects: sets TournamentEntry.checkedInAt; emits tournament "checkin" event.
+   */
   app.post("/:id/checkin", { preHandler: [requireAuth] }, async (request, reply) => {
     const userId = (request.user as { id: string }).id;
     const { id } = request.params as { id: string };
@@ -228,8 +323,20 @@ export async function tournamentRoutes(app: FastifyInstance) {
     return { entry: updated };
   });
 
-  // POST /api/tournaments/:id/start — close check-in and generate the bracket.
-  // The scheduler calls the service directly; this route covers manual starts.
+  /**
+   * POST /api/tournaments/:id/start
+   * Auth: JWT required (no admin check — any authenticated user can trigger;
+   *   the bracketService enforces its own invariants).
+   * Params: id.
+   * Response 200: { started: true }
+   * Response 404: tournament not found.
+   * Response 409: tournament's scheduledAt is in the future, or bracketService
+   *   returns a reason (e.g. insufficient checked-in players).
+   * Side effects: closes check-in, seeds bracket via bracketService.startTournament();
+   *   emits tournament "started" event.
+   * Note: the automated scheduler also calls startTournament() directly at
+   *   scheduledAt; this route is for manual/early starts by TOs.
+   */
   app.post("/:id/start", { preHandler: [requireAuth] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const tournament = await prisma.tournament.findUnique({ where: { id } });
@@ -243,11 +350,18 @@ export async function tournamentRoutes(app: FastifyInstance) {
     return { started: true };
   });
 
-  // GET /api/tournaments/:id/ready — matches with both players decided.
-  // The game client polls this every ~5s while the player sits in the lobby,
-  // so each authenticated poll doubles as a liveness heartbeat for the
-  // no-show sweep. Fire-and-forget: presence must never add latency to or
-  // fail the poll itself.
+  /**
+   * GET /api/tournaments/:id/ready
+   * Auth: JWT required.
+   * Params: id.
+   * Response 200: { matches: TournamentMatch[] } — only matches where both
+   *   player1Id and player2Id are set and involve the authenticated user.
+   *   Returns { matches: [] } when the tournament is not ACTIVE.
+   * Response 404: tournament not found.
+   * Side effects: calls markPresent(tournamentId, userId) fire-and-forget as a
+   *   liveness heartbeat. Errors from markPresent are suppressed — presence
+   *   must never fail or slow down this poll.
+   */
   app.get("/:id/ready", { preHandler: [requireAuth] }, async (request, reply) => {
     const userId = (request.user as { id: string }).id;
     const { id } = request.params as { id: string };
@@ -258,8 +372,22 @@ export async function tournamentRoutes(app: FastifyInstance) {
     return { matches: await getReadyTournamentMatches(id, userId) };
   });
 
-  // POST /api/tournaments/:id/matches/:matchKey/report — record a result.
-  // v1 trust model: the reporter must be one of the two participants.
+  /**
+   * POST /api/tournaments/:id/matches/:matchKey/report
+   * Auth: JWT required (must be a participant — player1 or player2).
+   * Params: id (tournamentId), matchKey.
+   * Body: { winnerId: string }
+   * Response 200: result from bracketService.reportTournamentResult().
+   * Response 400: validation error.
+   * Response 403: caller is not a participant.
+   * Response 404: tournament or match not found.
+   * Response 409: tournament not ACTIVE, result already reported, or
+   *   bracketService throws (e.g. bracket integrity violation).
+   * Side effects: advances bracket via bracketService; emits tournament
+   *   "completed" or "result" event.
+   * Trust model (v1): self-reporting by participants; no per-game evidence
+   *   required. Disputes go through admin DQ.
+   */
   app.post(
     "/:id/matches/:matchKey/report",
     { preHandler: [requireAuth] },
@@ -299,10 +427,18 @@ export async function tournamentRoutes(app: FastifyInstance) {
     }
   );
 
-  // POST /api/tournaments/:id/entries/:userId/dq — disqualify a player (TO
-  // action). Before the start the entry is simply excluded from the bracket;
-  // mid-bracket every ready match involving the player is forfeited to the
-  // opponent (cascading as the player drops through losers).
+  /**
+   * POST /api/tournaments/:id/entries/:userId/dq
+   * Auth: ADMIN required.
+   * Params: id (tournamentId), userId (player to disqualify).
+   * Response 200: { disqualified: true, ...bracketServiceResult }
+   * Response 404: tournament or entry not found.
+   * Response 409: tournament is COMPLETED or CANCELED, player already DQ'd,
+   *   or bracketService throws.
+   * Side effects: sets TournamentEntry.dqAt; cascades forfeits for all ready
+   *   matches involving the player via bracketService.dqTournamentEntry();
+   *   emits tournament "completed" or "result" event.
+   */
   app.post(
     "/:id/entries/:userId/dq",
     { preHandler: [requireAdmin] },
@@ -331,9 +467,19 @@ export async function tournamentRoutes(app: FastifyInstance) {
     }
   );
 
-  // POST /api/tournaments/:id/matches/:matchKey/override — TO resolves a
-  // stuck match (both players known, neither reported). Already-reported
-  // results cannot be overridden — disputes go through DQ instead.
+  /**
+   * POST /api/tournaments/:id/matches/:matchKey/override
+   * Auth: ADMIN required.
+   * Params: id (tournamentId), matchKey.
+   * Body: { winnerId: string }
+   * Response 200: result from bracketService.reportTournamentResult().
+   * Response 400: validation error.
+   * Response 404: tournament or match not found.
+   * Response 409: tournament not ACTIVE, result already reported (use DQ instead),
+   *   match doesn't have both players yet, or bracketService throws.
+   * Side effects: same as /report — advances bracket, emits event.
+   * Use case: a TO resolves a stuck match (both players seeded but neither reported).
+   */
   app.post(
     "/:id/matches/:matchKey/override",
     { preHandler: [requireAdmin] },

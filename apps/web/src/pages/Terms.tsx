@@ -1,6 +1,17 @@
-import PublicFooter from "../components/PublicFooter";
+/**
+ * Terms page
+ *
+ * Route:    /terms  (public, no auth wrapper in App.tsx)
+ * Auth:     Public — no RequireAuth.
+ *
+ * Purpose:  Plain-language Terms of Service. Static content only; no API calls.
+ *
+ * Data dependencies:  none.
+ *
+ * UI states:  single static render.
+ */
 
-// Public /terms page. Plain-language terms for a free hobby gaming service.
+import PublicFooter from "../components/PublicFooter";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (

@@ -1,3 +1,36 @@
+/**
+ * Subscribe page
+ *
+ * Routes:   /subscribe, /subscribe/success  (both rendered inside RequireAuth
+ *           + Layout in App.tsx)
+ * Auth:     Behind RequireAuth.
+ *
+ * Purpose:  Stripe subscription checkout entry point. Currently hidden from
+ *           the nav (free-only launch) but reachable by direct URL — shows a
+ *           "coming soon" notice. The full checkout flow is preserved in code
+ *           and activates when SUBSCRIPTIONS_LIVE is flipped to true.
+ *
+ * Data dependencies:
+ *   - POST /subscriptions/create-checkout  — returns { url } to redirect to
+ *     Stripe Checkout (only reached when SUBSCRIPTIONS_LIVE === true)
+ *
+ * Constants:
+ *   SUBSCRIPTIONS_LIVE — feature flag; false = dormant (free-launch mode).
+ *     Flip to true when the $5/mo subscription ships as product step 2.
+ *
+ * Local state:
+ *   - loading: disables the subscribe button and shows "Redirecting...".
+ *   - error: server error string shown above the button.
+ *   - success: detected by presence of ?session_id search param (Stripe
+ *     redirects back to /subscribe/success?session_id=... after payment).
+ *
+ * UI states:
+ *   - ?session_id present: green "You're subscribed!" confirmation card.
+ *   - Already subscribed: "Already Subscribed" card with link to Settings.
+ *   - SUBSCRIPTIONS_LIVE false: feature list + "Checkout isn't open yet" note.
+ *   - SUBSCRIPTIONS_LIVE true: feature list + Subscribe button (→ Stripe).
+ */
+
 import { useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { api } from "../lib/api";

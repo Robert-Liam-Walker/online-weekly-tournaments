@@ -1,3 +1,36 @@
+/**
+ * Feed page — community chat
+ *
+ * Route:    /feed  (rendered inside RequireAuth + Layout in App.tsx)
+ * Auth:     Behind RequireAuth.
+ *
+ * Purpose:  Real-time global chat for logged-in users. Messages are loaded
+ *           from the REST endpoint on mount, then kept live via socket.io.
+ *           Currently only the "main" channel exists.
+ *
+ * Data dependencies:
+ *   - GET  /chat/main            — initial message history
+ *   - Socket event "chat:join"   — emitted on mount to join the channel
+ *   - Socket event "chat:message" (in)  — new messages pushed from server
+ *   - Socket event "chat:message" (out) — user sends a new message
+ *   Query key: ["chat", "main"]
+ *
+ * Local state:
+ *   - input: current value of the message input field.
+ *   - bottomRef: scrolled into view whenever history.length changes (auto-scroll).
+ *   - inputRef: refocused after sending a message.
+ *
+ * UI states:
+ *   - Empty history: "No messages yet" placeholder.
+ *   - Populated: messages grouped by sender within 5-minute windows
+ *     (grouped messages suppress avatar + username header to reduce noise).
+ *   - Own messages: blue avatar + blue username; others: gray.
+ *
+ * Dedup note: the socket "chat:message" handler checks for existing IDs
+ * before appending — prevents doubles when the REST load and the first
+ * socket push race.
+ */
+
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";

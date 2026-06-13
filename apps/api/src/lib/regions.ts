@@ -1,3 +1,47 @@
+/**
+ * regions.ts — Region definitions and DST-correct timezone math.
+ *
+ * Purpose: Single source of truth for the three nightly-regional regions
+ * (EU / NA East / NA West) — their display labels, IANA timezone strings, and
+ * the UTC instant computation for a given wall-clock time in that region.
+ * Used by scheduleTournaments.ts to create each night's tournament at
+ * exactly 20:00 region-local time regardless of DST transitions.
+ *
+ * IMPORTANT — DUPLICATION NOTE: This file is duplicated at
+ *   apps/web/src/lib/regions.ts
+ * so the web client can perform the same timezone math without an API round-
+ * trip. Any change here must be mirrored there. The two files should ideally
+ * be consolidated into packages/shared — tracked as a TODO but not fixed here
+ * to stay within the no-behavior-change constraint of this pass.
+ *
+ * DST-correct math (zero external dependencies):
+ *   Node's `Intl.DateTimeFormat` exposes the tz's wall clock at any instant
+ *   without a bundled timezone database. utcInstantForWallClock uses a
+ *   two-pass convergence to convert "y-m-d hour:00 in tz" → UTC:
+ *     1. Assume UTC offset = 0, get a first-guess UTC instant.
+ *     2. Measure the real offset at that instant; subtract to correct.
+ *     3. Repeat once — sufficient because DST offsets are step functions;
+ *        the second iteration always lands on the post-transition offset.
+ *   For a non-existent wall time (spring-forward gap) this resolves to the
+ *   instant one hour later — the sensible behaviour for an event start.
+ *
+ * Key exports:
+ *   REGIONS            — ordered array of RegionInfo; iterate to create nightly
+ *                        events for all three regions.
+ *   NIGHTLY_LOCAL_HOUR — wall-clock hour (20) at which nightly events start.
+ *   nextNightAt        — the next 20:00-local instant strictly in the future.
+ *   utcInstantForWallClock — general wall-clock → UTC converter.
+ *   localDateParts     — tz-local calendar date for an instant.
+ *   regionDateLabel    — short human label ("Jun 13") for UIs and event names.
+ *
+ * Invariants:
+ *   - RegionCode values ("EU", "NA_EAST", "NA_WEST") must match the Region
+ *     enum in prisma/schema.prisma; the scheduler writes these directly to the
+ *     DB region column.
+ *   - Formatter instances are cached per tz to avoid re-creating Intl objects
+ *     on every tick (called once per minute per region in production).
+ */
+
 // Nightly-regional regions: single source of truth for display names and
 // IANA timezones. The Region enum values mirror prisma/schema.prisma.
 
@@ -29,6 +73,7 @@ export const NIGHTLY_LOCAL_HOUR = 20;
 // we need to invert "wall clock -> instant" without a tz database dep.
 // ---------------------------------------------------------------------------
 
+/** Cached Intl.DateTimeFormat instances, keyed by IANA tz string. */
 const partsFormatters = new Map<string, Intl.DateTimeFormat>();
 
 function formatterFor(tz: string): Intl.DateTimeFormat {
@@ -58,7 +103,12 @@ function wallClockUtcMs(instant: Date, tz: string): number {
   return Date.UTC(get("year"), get("month") - 1, get("day"), hour, get("minute"), get("second"));
 }
 
-/** The tz's local calendar date (y/m/d) at `instant`. */
+/**
+ * The tz's local calendar date (y/m/d) at `instant`.
+ * @param instant - the UTC instant to project into the tz.
+ * @param tz      - IANA timezone identifier (e.g. "America/New_York").
+ * @returns       y (full year), m (1-12), d (1-31).
+ */
 export function localDateParts(instant: Date, tz: string): { y: number; m: number; d: number } {
   const parts = formatterFor(tz).formatToParts(instant);
   const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
@@ -74,6 +124,13 @@ export function localDateParts(instant: Date, tz: string): { y: number; m: numbe
  * second pass lands on the post-transition offset). For a wall time that
  * doesn't exist (spring-forward gap) this resolves to the instant one hour
  * later, which is the sane behavior for an event start.
+ *
+ * @param tz   - IANA timezone identifier.
+ * @param y    - full year (e.g. 2026).
+ * @param m    - month 1–12.
+ * @param d    - day 1–31.
+ * @param hour - wall-clock hour 0–23.
+ * @returns The UTC Date for the requested wall-clock time in `tz`.
  */
 export function utcInstantForWallClock(
   tz: string,
@@ -95,6 +152,10 @@ export function utcInstantForWallClock(
  * The next NIGHTLY_LOCAL_HOUR:00 in the region that is strictly in the
  * future relative to `now`: tonight's if it hasn't happened yet, else
  * tomorrow's. DST-correct.
+ *
+ * @param region - one of the REGIONS entries.
+ * @param now    - reference instant (defaults to Date.now()).
+ * @returns The UTC Date of the next 20:00 local in the region.
  */
 export function nextNightAt(region: RegionInfo, now: Date = new Date()): Date {
   const { y, m, d } = localDateParts(now, region.tz);
@@ -109,7 +170,12 @@ export function nextNightAt(region: RegionInfo, now: Date = new Date()): Date {
   return candidate;
 }
 
-/** Region-local "Jun 13"-style date label for an instant. */
+/**
+ * Region-local "Jun 13"-style date label for an instant.
+ * Used in tournament name generation (e.g. "Randalls Nightly — EU — Jun 13").
+ * @param instant - the UTC instant to label.
+ * @param tz      - IANA timezone identifier.
+ */
 export function regionDateLabel(instant: Date, tz: string): string {
   return instant.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: tz });
 }

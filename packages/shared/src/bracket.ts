@@ -2,13 +2,45 @@
 // no IO — so the API layer can persist however it likes and tests can
 // simulate thousands of tournaments.
 //
-// Match keys are stable strings the rest of the system can reference
-// (TournamentMatch.matchKey): "W{round}-{n}" winners side, "L{round}-{n}"
-// losers side, "GF" grand final, "GFR" grand final bracket reset.
+// == Match key semantics ==
+// Match keys are stable, human-readable strings persisted in TournamentMatch.matchKey:
+//   "W{round}-{n}"   — winners bracket (e.g. "W1-1", "W2-3")
+//   "L{round}-{n}"   — losers bracket  (e.g. "L1-1", "L4-2")
+//   "GF"             — grand final
+//   "GFR"            — grand final bracket reset
+// Keys are 1-indexed within their round. The round numbering for winners and
+// losers is independent: W1 is winners round 1, L1 is losers round 1.
 //
+// == Seeding and byes ==
 // Entrants are passed in seed order (index 0 = seed 1). The bracket pads
-// to the next power of two with byes; bye matches auto-complete and
-// cascade, which also covers check-in no-shows.
+// to the next power of two (minimum 4) with bye slots. A bye is represented
+// as p1 or p2 === null. Bye matches auto-complete in propagate() and cascade
+// forward, so the engine is always in a consistent state after any mutation.
+// The standard Challonge-style seed placement is used for W round 1:
+//   size 8 → match order [1v8, 4v5, 2v7, 3v6]
+//
+// == Source of truth ==
+// The bracket engine is pure in-memory state. The API layer (bracketService.ts)
+// is responsible for persisting match results to the database and rebuilding
+// the engine from those persisted results. The DB (TournamentMatch rows) is
+// the source of truth; the engine is always derived by replaying results.
+//
+// == Grand final and bracket reset ==
+// GF (grand final): winners-bracket finalist (GF p1) vs. losers-bracket
+//   finalist (GF p2). If GF p1 wins, GFR is cancelled (no reset needed —
+//   the winners finalist never lost). If GF p2 wins, GFR is played.
+// GFR (grand final bracket reset): GF winner vs. GF loser. The player who
+//   wins GFR is the champion. cancelResetIfDecided() sets GFR.cancelled when
+//   GF p1 wins GF.
+//
+// == Key invariants ==
+// - Every real player loses exactly twice before elimination (double-elim rule).
+// - The champion has lost at most once (won the bracket from winners side or
+//   came back through losers and won the reset).
+// - propagate() is called after every mutation; it is safe to call multiple
+//   times (idempotent convergence).
+// - reportResult() validates that the match is ready (both players, not done)
+//   and that the winner is one of the two players; it throws on violation.
 
 export type SlotSource =
   | { type: "seed"; seed: number } // 1-indexed; seeds beyond entrant count are byes
@@ -48,7 +80,13 @@ export interface Placement {
   placement: number; // 1, 2, 3, 4, 5, 5, 7, 7, ... (ties share the tier rank)
 }
 
-/** Standard bracket seed placement: size 8 -> [1,8,4,5,2,7,3,6] */
+/**
+ * Standard bracket seed placement for a bracket of `size`.
+ * Returns seed numbers (1-indexed) in match-slot order for W round 1.
+ * e.g. size 8 → [1, 8, 4, 5, 2, 7, 3, 6] (1v8, 4v5, 2v7, 3v6).
+ * Built by recursive mirroring: each pass doubles the array and inserts
+ * the complement (mirror - seed) after each existing entry.
+ */
 function seedPositions(size: number): number[] {
   let arr = [1];
   while (arr.length < size) {
@@ -60,12 +98,27 @@ function seedPositions(size: number): number[] {
   return arr;
 }
 
+/** Smallest power of two >= n. */
 function nextPowerOfTwo(n: number): number {
   let p = 1;
   while (p < n) p *= 2;
   return p;
 }
 
+/**
+ * Build the complete list of BracketMatchDefs for a double-elimination bracket
+ * of `size` players (must be a power of two, minimum 4).
+ *
+ * Structure:
+ *   - Winners rounds 1..k (k = log2(size)).
+ *   - Losers round 1: W1 losers paired off.
+ *   - For i = 1..(k-1):
+ *       Major losers round 2i: LB survivors vs. new losers dropping from W(i+1).
+ *         The winners-loser assignment reverses on odd i to delay rematches.
+ *       Minor losers round 2i+1: LB survivors paired (omitted for the last i).
+ *   - Grand final (GF): W finalist vs. L finalist.
+ *   - Grand final reset (GFR): GF winner vs. GF loser.
+ */
 function buildDefs(size: number): BracketMatchDef[] {
   const k = Math.log2(size); // winners rounds
   const defs: BracketMatchDef[] = [];
@@ -164,6 +217,11 @@ function buildDefs(size: number): BracketMatchDef[] {
   return defs;
 }
 
+/**
+ * Resolve a SlotSource to a player ID (or null for bye, or undefined if not yet decided).
+ * - seed: look up by index into b.players; seeds beyond player count are null (bye).
+ * - winnerOf / loserOf: look up the referenced match; return undefined if not done.
+ */
 function resolveSource(b: DEBracket, s: SlotSource): string | null | undefined {
   if (s.type === "seed") {
     return s.seed <= b.players.length ? b.players[s.seed - 1] : null;
@@ -173,7 +231,12 @@ function resolveSource(b: DEBracket, s: SlotSource): string | null | undefined {
   return s.type === "winnerOf" ? m.winnerId : m.loserId;
 }
 
-/** Fill resolvable slots and auto-complete bye matches until nothing changes */
+/**
+ * Fill resolvable slots and auto-complete bye matches until nothing changes.
+ * Iterates all matches repeatedly; each pass may unlock downstream matches.
+ * Terminates when a full pass produces no changes (convergence).
+ * Covers both single-bye (one real player, one bye) and bye-vs-bye cascades.
+ */
 function propagate(b: DEBracket): void {
   let changed = true;
   while (changed) {
@@ -206,6 +269,11 @@ function propagate(b: DEBracket): void {
   }
 }
 
+/**
+ * Cancel the bracket reset (GFR) if the winners-side finalist (GF p1) wins GF.
+ * When p1 wins GF, they never lost a match — no reset is needed or played.
+ * Called by propagate() on bye-auto-completes and by reportResult().
+ */
 function cancelResetIfDecided(b: DEBracket, gf: MatchState): void {
   // If the winners-side finalist (GF p1) wins, there is no bracket reset
   if (gf.winnerId !== null && gf.winnerId === gf.p1) {
@@ -214,6 +282,17 @@ function cancelResetIfDecided(b: DEBracket, gf: MatchState): void {
   }
 }
 
+/**
+ * Generate a complete double-elimination bracket for the given players.
+ * @param playersInSeedOrder - player IDs in seed order (index 0 = seed 1).
+ *   Minimum 2 players; no duplicates.
+ * @returns A fully initialized DEBracket with all matches and bye slots resolved.
+ * @throws {Error} if fewer than 2 players or if there are duplicate player IDs.
+ *
+ * The bracket size is padded to the next power of two (minimum 4).
+ * propagate() is called after initialization to auto-complete all bye matches
+ * and cascade results forward.
+ */
 export function generateDoubleElim(playersInSeedOrder: string[]): DEBracket {
   if (playersInSeedOrder.length < 2) {
     throw new Error("double elimination needs at least 2 players");
@@ -242,7 +321,11 @@ export function generateDoubleElim(playersInSeedOrder: string[]): DEBracket {
   return b;
 }
 
-/** Matches with two real players that are ready to be played */
+/**
+ * Return all matches currently playable: both p1 and p2 are real (non-null)
+ * players, the match is not done, and it is not cancelled.
+ * These are the matches the API exposes to players.
+ */
 export function getReadyMatches(b: DEBracket): MatchState[] {
   const ready: MatchState[] = [];
   for (const m of b.matches.values()) {
@@ -251,6 +334,17 @@ export function getReadyMatches(b: DEBracket): MatchState[] {
   return ready;
 }
 
+/**
+ * Record the result of a match and propagate consequences through the bracket.
+ * @param b        - the bracket to mutate (in place).
+ * @param matchKey - the match to record (must exist, be playable, and be ready).
+ * @param winnerId - the winning player's ID (must be p1 or p2 of this match).
+ * @throws {Error} if the match is unknown, not playable, not ready, or if
+ *   winnerId is not one of the two players.
+ *
+ * After recording the result, propagate() is called to fill downstream slots
+ * and auto-complete any newly-unlocked bye matches.
+ */
 export function reportResult(b: DEBracket, matchKey: string, winnerId: string): void {
   const m = b.matches.get(matchKey);
   if (!m) throw new Error(`unknown match ${matchKey}`);
@@ -266,12 +360,23 @@ export function reportResult(b: DEBracket, matchKey: string, winnerId: string): 
   propagate(b);
 }
 
+/**
+ * True when the bracket is complete: GF is done, and GFR is either done or
+ * cancelled (cancelled means the winners finalist won GF and no reset is needed).
+ */
 export function isComplete(b: DEBracket): boolean {
   const gf = b.matches.get("GF")!;
   const reset = b.matches.get("GFR")!;
   return gf.done && (reset.cancelled || reset.done);
 }
 
+/**
+ * Return the tournament champion (the final winner).
+ * @returns The champion's player ID, or null if the bracket is not complete.
+ *
+ * Champion is the GFR winner if a reset was played, or the GF winner if the
+ * reset was cancelled (winners finalist never lost).
+ */
 export function getChampion(b: DEBracket): string | null {
   if (!isComplete(b)) return null;
   const reset = b.matches.get("GFR")!;
@@ -281,6 +386,16 @@ export function getChampion(b: DEBracket): string | null {
 /**
  * Final standings, ties sharing a tier: 1, 2, 3, 4, then 5/5, 7/7, ...
  * Only real players appear (byes are skipped).
+ *
+ * @throws {Error} if the bracket is not complete.
+ *
+ * Placement algorithm:
+ *   1st: champion (see getChampion).
+ *   2nd: the other finalist (GF loser if no reset; GFR loser if reset played).
+ *   3rd: loser of the last losers round (L{2k-2}-1, single match).
+ *   4th: loser of the semi-final losers round (L{2k-3}, two matches → tie).
+ *   5/5: losers of L{2k-4}, etc. Each losers round contributes one tier;
+ *        ties within a round share the same rank.
  */
 export function getPlacements(b: DEBracket): Placement[] {
   if (!isComplete(b)) throw new Error("bracket is not complete");
@@ -295,6 +410,7 @@ export function getPlacements(b: DEBracket): Placement[] {
 
   const k = Math.log2(b.size);
   let rank = 3;
+  // Traverse losers rounds from last to first; each round is one placement tier.
   for (let r = 2 * k - 2; r >= 1; r--) {
     let matchCount = 0;
     for (const m of b.matches.values()) {

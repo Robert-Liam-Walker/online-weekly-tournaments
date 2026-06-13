@@ -1,9 +1,35 @@
+/**
+ * ResetPasswordPage
+ *
+ * Route:    /reset-password?token=<jwt>  (public, no auth wrapper in App.tsx)
+ * Auth:     Public — no RequireAuth. The token in the query string IS the
+ *           credential; it's a single-use JWT issued by /auth/forgot-password.
+ *
+ * Purpose:  Step 2 of the password-reset flow. Reads the ?token param from
+ *           the URL (once on mount, never re-reads), lets the user pick a new
+ *           password, and POSTs to /auth/reset-password. On success shows a
+ *           confirmation with a link back to /login.
+ *
+ * Data dependencies:
+ *   - POST /auth/reset-password  — body: { token, newPassword }
+ *
+ * Local state:
+ *   - token: extracted from URLSearchParams once on mount (useState lazy init).
+ *   - done: true after a successful reset; shows success card.
+ *   - error: server error string (e.g. "token expired") shown inline.
+ *   - loading: disables submit button and shows "...".
+ *
+ * UI states:
+ *   - No token in URL: error card + link to /forgot-password.
+ *   - Token present, not done: password input + submit button.
+ *     - If error contains "expired": inline link to /forgot-password.
+ *   - Done: green "Password updated" card with link to /login.
+ */
+
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 
-// Landing page for the emailed reset link (/reset-password?token=...).
-// Trades the single-use token for a new password.
 export default function ResetPasswordPage() {
   // Read once on mount — the token never changes for the life of the page.
   const [token] = useState(

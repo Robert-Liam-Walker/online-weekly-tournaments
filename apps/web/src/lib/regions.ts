@@ -1,3 +1,56 @@
+/**
+ * regions.ts — region-to-timezone mapping and time-display helpers.
+ *
+ * PURPOSE
+ *   Provides typed region constants and formatting utilities used by the
+ *   tournament listing UI to display start times in each region's local
+ *   timezone alongside the viewer's own local time.
+ *
+ * DUPLICATION WARNING
+ *   TODO(cleanup): This file duplicates apps/api/src/lib/regions.ts.
+ *   The two must be kept in sync manually whenever region labels, timezones,
+ *   or the TournamentRegion union type change. A shared package (e.g.
+ *   packages/shared) would eliminate the duplication, but that refactor is
+ *   out of scope here — do not merge without the API side.
+ *
+ * REGION MODEL
+ *   The API is gaining a `region` field on tournaments ("EU" | "NA_EAST" |
+ *   "NA_WEST"); older rows have no region at all. Always run values through
+ *   `isKnownRegion` before mapping — unknown/missing regions fall into the
+ *   generic "other tournaments" list.
+ *
+ * EXPORTS
+ * ──────────────────────────────────────────────────────────────────────────
+ *   TournamentRegion
+ *     Union type for valid region codes: "EU" | "NA_EAST" | "NA_WEST".
+ *
+ *   REGIONS
+ *     Map from TournamentRegion → { label: string; tz: IANA timezone string }.
+ *     EU    → Europe/Berlin
+ *     NA_EAST → America/New_York
+ *     NA_WEST → America/Los_Angeles
+ *
+ *   REGION_ORDER
+ *     Canonical display order for the nightly hero grid: EU, NA_EAST, NA_WEST.
+ *
+ *   isKnownRegion(value) → value is TournamentRegion
+ *     Type guard; returns true when value is a string key of REGIONS.
+ *
+ *   regionDate(iso, region) → string
+ *     Event date formatted in the region's timezone, e.g. "Fri, Jun 13".
+ *
+ *   regionTime(iso, region) → string
+ *     Event time in the region's timezone with abbreviated tz name,
+ *     e.g. "8:00 PM CEST".
+ *
+ *   viewerTime(iso, region) → string | null
+ *     The same instant in the viewer's browser timezone, e.g. "2:00 PM your
+ *     time". Returns null when the viewer's local time string matches the
+ *     region's (nothing worth repeating). If the viewer's local date differs
+ *     from the region's (e.g. EU 8 PM landing after midnight in Asia/Pacific)
+ *     the weekday is prefixed: "Sat 4:00 AM your time".
+ */
+
 // Region helper for Randall's Nightly Tournaments.
 //
 // The API is gaining a `region` field on tournaments ("EU" | "NA_EAST" |
@@ -16,6 +69,7 @@ export const REGIONS: Record<TournamentRegion, { label: string; tz: string }> = 
 /** Display order for the nightly hero grid. */
 export const REGION_ORDER: TournamentRegion[] = ["EU", "NA_EAST", "NA_WEST"];
 
+/** Type guard: true when `value` is a recognized TournamentRegion code. */
 export function isKnownRegion(value: unknown): value is TournamentRegion {
   return typeof value === "string" && value in REGIONS;
 }

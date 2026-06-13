@@ -1,3 +1,51 @@
+/**
+ * Series page
+ *
+ * Route:    /series/:id  (rendered inside RequireAuth + Layout in App.tsx)
+ * Auth:     Behind RequireAuth.
+ *
+ * Purpose:  Live match view for a PvP series created by a challenge in the
+ *           Arena. Shows the current score, per-game history, an in-match
+ *           chat (participants only), and a result-submission panel.
+ *           Results are submitted by uploading/auto-detecting Slippi replay
+ *           files; participants without File System Access API (non-Chromium)
+ *           fall back to manual "I won / opponent won" buttons.
+ *
+ * Data dependencies:
+ *   - GET   /series/:id           — full series detail + games list
+ *   - POST  /series/:id/replay    — multipart upload of a .slp file
+ *   - PATCH /series/:id/score     — manual game result (fallback for no FSA)
+ *   Query key: ["series", id]
+ *   Socket event (in): "series:update" — merges updated SeriesType fields
+ *     into the query cache for the matching series id.
+ *
+ * File System Access (FSA) API integration:
+ *   - getPermittedFolder() (lib/slippiFolder) — restores a previously saved
+ *     directory handle from IndexedDB; auto-starts folder watching if found.
+ *   - startWatchingHandle() — polls the directory every 3 s for new .slp
+ *     files modified after seriesStartRef (timestamp of page mount). Each
+ *     new file is submitted via submitReplayFile(). seenFilesRef prevents
+ *     re-uploading the same filename within a session.
+ *   - Watching stops automatically when series.status transitions to
+ *     COMPLETED; the cleanup in useEffect also clears the interval on unmount.
+ *
+ * Local state:
+ *   - uploadStatus: "idle" | "uploading" | "verified" | "error"
+ *   - uploadError: server error message when uploadStatus === "error"
+ *   - watching: true while the FSA folder watcher interval is active
+ *   - reportError / submitting: for the manual score-report fallback
+ *
+ * UI states:
+ *   - isLoading: full-page "Loading series...".
+ *   - Not found: "Series not found."
+ *   - In progress (participant): score card + chat + game history + result panel.
+ *   - Completed: score card + winner banner + game history (result panel hidden).
+ *   - Non-participant: score card + game history only (no chat, no result panel).
+ *   Result panel branches:
+ *     - FSA supported (Chrome/Edge): folder watcher status + manual upload fallback.
+ *     - FSA not supported (Firefox, Safari): manual win/loss buttons + upload option.
+ */
+
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -66,7 +114,13 @@ export default function SeriesPage() {
     return () => { if (watchIntervalRef.current) clearInterval(watchIntervalRef.current); };
   }, []);
 
-  // Stop watching when series completes
+  // Stop watching when series completes.
+  // NOTE: stopWatching and watching are intentionally omitted from the dep
+  // array — including them would re-run on every render; series?.status is
+  // the only meaningful trigger here.
+  // TODO(cleanup): refactor stopWatching into a useCallback and add it to
+  // deps to satisfy exhaustive-deps lint rule without unintended re-runs.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (series?.status === "COMPLETED" && watching) stopWatching();
   }, [series?.status]);

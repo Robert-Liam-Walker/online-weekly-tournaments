@@ -1,3 +1,56 @@
+/**
+ * TournamentDetail page
+ *
+ * Route:    /tournaments/:id  (rendered inside RequireAuth + Layout in App.tsx)
+ * Auth:     Behind RequireAuth.
+ *
+ * Purpose:  Per-tournament event page. Shows metadata, registration/check-in
+ *           controls, the entrant list, a bracket visualization, and (for
+ *           admins) DQ controls, stuck-match overrides, and a replay-review
+ *           queue.
+ *
+ * Data dependencies:
+ *   - GET  /tournaments/:id                              — TournamentDetailType
+ *     Query key: ["tournament", id]  (refetchInterval: 30s fallback)
+ *   - POST /tournaments/:id/register                    — register viewer
+ *   - POST /tournaments/:id/checkin                     — check in viewer
+ *   - POST /tournaments/:id/entries/:userId/dq          — admin: DQ entrant
+ *   - POST /tournaments/:id/matches/:matchKey/override  — admin: force result
+ *   - GET  /replays/reviews/:id                         — admin: pending replays
+ *     Query key: ["replay-reviews", id]
+ *   - PATCH /replays/:replayId/resolve                  — admin: resolve replay
+ *   Socket event (in): "tournament:update" { tournamentId, kind }
+ *     — invalidates ["tournament", id] for matching tournamentId.
+ *
+ * Bracket rendering:
+ *   buildBracketSets() — filters TournamentMatchDetail[] into BracketSet[]
+ *     using the same rules as the in-game BracketWorker: skips bye completions
+ *     and GFR (grand finals reset) when one slot is null.
+ *   BracketColumns renders winners (key[0]==="W") and losers (key[0]==="L")
+ *   rounds as flex columns; grand finals (key[0]==="G") get a labeled overlay.
+ *
+ * Admin-only sections (role === "ADMIN"):
+ *   - DQ button on each entrant (during REGISTRATION or ACTIVE).
+ *   - "Stuck matches" panel (ACTIVE only): matches ready 10+ min with no result.
+ *   - ReplayReviewsPanel: PENDING/MISMATCH/MANUAL_REVIEW replays awaiting human
+ *     resolution.
+ *
+ * Region / time-zone display:
+ *   - Known region rows: dual-timezone — region local time always shown;
+ *     viewer's own time appended only when the wall-clock hour differs.
+ *   - Unknown/absent region: generic toLocaleDateString() fallback.
+ *
+ * Constants:
+ *   CHECKIN_OPENS_MINUTES_BEFORE = 30   — check-in gate offset before start.
+ *   STUCK_MATCH_AFTER_MS = 10 min       — threshold for "stuck" match override.
+ *
+ * UI states:
+ *   - isLoading / !t: loading message.
+ *   - REGISTRATION: register / check-in / checked-in controls.
+ *   - ACTIVE / COMPLETED: bracket live; registration controls hidden.
+ *   - Admin: DQ buttons, stuck-match overrides, replay review panel visible.
+ */
+
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -38,6 +91,8 @@ function statusBadge(status: string) {
   return styles[status] ?? "bg-gray-700 text-gray-300";
 }
 
+// TODO(cleanup): formatDate is identical to copies in Admin.tsx and
+// Tournaments.tsx. Consider extracting to lib/dates.ts.
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", {
     weekday: "long",

@@ -1,3 +1,50 @@
+/**
+ * Tournaments page
+ *
+ * Routes:   /tournaments, /tournaments/success  (rendered inside RequireAuth
+ *           + Layout in App.tsx; /tournaments/success also maps here)
+ * Auth:     Behind RequireAuth.
+ *
+ * Purpose:  Main tournament lobby. Shows tonight's regional nightly events in
+ *           a hero grid (one card per known region with the next not-yet-
+ *           finished event) plus a general list of all other tournaments.
+ *           Supports inline one-click registration for free events.
+ *
+ * Data dependencies:
+ *   - GET  /tournaments              — Tournament[]
+ *     Query key: ["tournaments"]
+ *   - POST /tournaments/:id/register — register viewer; may return checkoutUrl
+ *   Socket event (in): "tournament:update" — invalidates ["tournaments"].
+ *
+ * Layout logic:
+ *   nightly (useMemo) — for each known region (EU, NA_EAST, NA_WEST) picks
+ *     the earliest UPCOMING/REGISTRATION/ACTIVE tournament. Displayed in
+ *     REGION_ORDER as hero NightlyCard components.
+ *   rest — everything not in the nightly set; shown in a flat TournamentCard
+ *     list below (past nightlies, region-less legacy rows, admin test events).
+ *
+ * Registration flow:
+ *   - Free events: POST /tournaments/:id/register; on success invalidates the
+ *     list. If the response contains checkoutUrl (paid events), redirects to
+ *     Stripe (Stripe is currently dormant — paid rows show a static note).
+ *   - registeringId tracks which card's button is in the loading state.
+ *
+ * SuccessBanner:
+ *   Shown when ?tournament_id is present in the URL (Stripe return URL or
+ *   registration confirmation redirect).
+ *
+ * Region / time-zone display (NightlyCard):
+ *   Dual-timezone rule: always shows the region's local time; appends the
+ *   viewer's local time only when it differs (viewerTime returns null when
+ *   the clocks match).
+ *
+ * UI states:
+ *   - isLoading: full-page "Loading tournaments...".
+ *   - No tournaments at all: "No tournaments scheduled yet" placeholder.
+ *   - Nightly section: visible only when at least one known-region event exists.
+ *   - Other section: visible only when rest.length > 0.
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -18,6 +65,8 @@ function dollars(cents: number) {
   return `$${(cents / 100).toFixed(0)}`;
 }
 
+// TODO(cleanup): formatDate is identical to copies in Admin.tsx and
+// TournamentDetail.tsx. Consider extracting to lib/dates.ts.
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", {
     weekday: "long",

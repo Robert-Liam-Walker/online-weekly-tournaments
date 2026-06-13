@@ -1,3 +1,24 @@
+/**
+ * routes/challenges.ts — Direct-challenge lifecycle endpoints.
+ *
+ * A Challenge is a one-to-one match request from one player to another. The
+ * flow is: send → (accept | decline). Accepting creates a linked Series.
+ *
+ * Endpoints (all under /api/challenges):
+ *   GET   /pending          — incoming PENDING challenges for the authenticated user (JWT)
+ *   POST  /                 — send a challenge to another player (subscription required)
+ *   PATCH /:id/accept       — accept a challenge (must be the challenged player; JWT)
+ *   PATCH /:id/decline      — decline a challenge (must be the challenged player; JWT)
+ *
+ * Socket.io events emitted:
+ *   challenge:receive  { ...Challenge, challenger, challenged }
+ *       → emitted to `user:<challengedId>` room on POST /
+ *   challenge:accepted { challenge, series }
+ *       → emitted to both `user:<challengerId>` and `user:<challengedId>` on accept
+ *
+ * Note: The decline route does NOT emit a socket event — the challenger's UI
+ * polls or relies on the pending-list response to detect declines.
+ */
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
@@ -5,7 +26,12 @@ import { requireAuth, requireSubscription } from "../plugins/auth";
 import { io } from "../index";
 
 export async function challengeRoutes(app: FastifyInstance) {
-  // GET /api/challenges/pending — incoming pending challenges for the logged-in user
+  /**
+   * GET /api/challenges/pending
+   * Auth: JWT required.
+   * Response 200: Challenge[] (status=PENDING, challengedId=me), newest first.
+   *   Each entry includes challenger { id, username } and challenged { id, username }.
+   */
   app.get("/pending", { preHandler: [requireAuth] }, async (request) => {
     const userId = (request.user as { id: string }).id;
     return prisma.challenge.findMany({
@@ -18,7 +44,15 @@ export async function challengeRoutes(app: FastifyInstance) {
     });
   });
 
-  // POST /api/challenges — send a challenge (subscription required)
+  /**
+   * POST /api/challenges
+   * Auth: active subscription required.
+   * Body: { challengedId: string (user id), format: "BO3"|"BO5" }
+   * Response 201: the created Challenge including challenger + challenged users.
+   * Response 400: validation error or self-challenge attempt.
+   * Response 409: a PENDING challenge from this user to this target already exists.
+   * Side effects: emits challenge:receive to `user:<challengedId>` Socket.io room.
+   */
   app.post(
     "/",
     { preHandler: [requireSubscription] },
@@ -69,7 +103,19 @@ export async function challengeRoutes(app: FastifyInstance) {
     }
   );
 
-  // PATCH /api/challenges/:id/accept
+  /**
+   * PATCH /api/challenges/:id/accept
+   * Auth: JWT required (must be the challenged user).
+   * Params: id — challenge id.
+   * Response 200: { challenge: updatedChallenge, series: newSeries }
+   * Response 404: challenge not found or caller is not the challenged player.
+   * Response 409: challenge is no longer PENDING.
+   * Side effects:
+   *   - Updates Challenge status to ACCEPTED + sets resolvedAt.
+   *   - Creates a new Series (player1=challenger, player2=challenged).
+   *   - Links the series back onto the challenge (separate update; see code comment).
+   *   - Emits challenge:accepted { challenge, series } to both players' rooms.
+   */
   app.patch(
     "/:id/accept",
     { preHandler: [requireAuth] },
@@ -111,7 +157,16 @@ export async function challengeRoutes(app: FastifyInstance) {
     }
   );
 
-  // PATCH /api/challenges/:id/decline
+  /**
+   * PATCH /api/challenges/:id/decline
+   * Auth: JWT required (must be the challenged user).
+   * Params: id — challenge id.
+   * Response 200: the updated Challenge row (status=DECLINED).
+   * Response 404: challenge not found or caller is not the challenged player.
+   * Response 409: challenge is no longer PENDING.
+   * Side effects: updates Challenge status to DECLINED + sets resolvedAt.
+   *   No socket event is emitted on decline.
+   */
   app.patch(
     "/:id/decline",
     { preHandler: [requireAuth] },

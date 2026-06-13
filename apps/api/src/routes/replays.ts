@@ -1,3 +1,30 @@
+/**
+ * routes/replays.ts — Tournament replay upload, review queue, and admin resolution.
+ *
+ * Replays (.slp files) can be attached to tournament matches as evidence. The
+ * server parses each uploaded file with lib/slippi.ts to extract the winner's
+ * in-game player name, then cross-checks it against the reported result using
+ * decideVerification(). This produces a verification status:
+ *
+ *   VERIFIED      — parsed winner name matches reported winner username
+ *   MISMATCH      — parsed winner name maps to the OTHER player
+ *   MANUAL_REVIEW — winner name doesn't map to either player, or is null
+ *   PENDING       — winner name maps to a player but no result is recorded yet
+ *
+ * Admins can override the status via PATCH /:replayId/resolve.
+ *
+ * Endpoints (under /api/replays):
+ *   POST   /:tournamentId/matches/:matchKey/replay   — upload a .slp (participant; JWT)
+ *   GET    /:tournamentId/matches/:matchKey/replays  — list replays for a match (JWT)
+ *   GET    /reviews/:tournamentId                    — admin review queue (ADMIN)
+ *   PATCH  /:replayId/resolve                        — admin resolves a flagged replay (ADMIN)
+ *
+ * Storage: replay files are stored via lib/replayStorage.ts (S3 in production,
+ * local disk in dev). The storagePath is persisted on the TournamentReplay row.
+ *
+ * decideVerification() is a pure function (vitest-covered in
+ * tests/decideVerification.test.ts) so it can be tested without a DB.
+ */
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
@@ -44,9 +71,21 @@ export function decideVerification(
 }
 
 export async function replayRoutes(app: FastifyInstance) {
-  // POST /api/replays/:tournamentId/matches/:matchKey/replay — attach a .slp
-  // as evidence for a tournament set. Participant-only; parsed server-side
-  // and cross-checked against the reported result (roadmap Phase 1 E).
+  /**
+   * POST /api/replays/:tournamentId/matches/:matchKey/replay
+   * Auth: JWT required (must be a participant of the match — player1 or player2).
+   * Params: tournamentId, matchKey.
+   * Body: multipart/form-data — single file field (the .slp file; max 50 MB from global config).
+   * Response 201: { replay: TournamentReplay }
+   * Response 400: no file uploaded.
+   * Response 403: caller is not a participant in this match.
+   * Response 404: match not found.
+   * Response 422: file could not be parsed as a valid .slp, or no players found.
+   * Side effects:
+   *   - Parses the .slp buffer with lib/slippi.ts.
+   *   - Stores the file via lib/replayStorage.ts (S3/local).
+   *   - Creates a TournamentReplay row with parsed metadata + verification status.
+   */
   app.post(
     "/:tournamentId/matches/:matchKey/replay",
     { preHandler: [requireAuth] },
@@ -126,8 +165,13 @@ export async function replayRoutes(app: FastifyInstance) {
     }
   );
 
-  // GET /api/replays/:tournamentId/matches/:matchKey/replays — list the
-  // replays attached to a set (newest first).
+  /**
+   * GET /api/replays/:tournamentId/matches/:matchKey/replays
+   * Auth: JWT required.
+   * Params: tournamentId, matchKey.
+   * Response 200: { replays: TournamentReplay[] } (newest first).
+   * Response 404: match not found.
+   */
   app.get(
     "/:tournamentId/matches/:matchKey/replays",
     { preHandler: [requireAuth] },
@@ -150,9 +194,14 @@ export async function replayRoutes(app: FastifyInstance) {
     }
   );
 
-  // GET /api/replays/reviews/:tournamentId — admin review queue: every
-  // replay for the tournament that is not yet VERIFIED (PENDING, MISMATCH,
-  // MANUAL_REVIEW), newest first.
+  /**
+   * GET /api/replays/reviews/:tournamentId
+   * Auth: ADMIN required.
+   * Params: tournamentId.
+   * Response 200: { replays: TournamentReplay[] } — all unverified replays
+   *   (status is PENDING, MISMATCH, or MANUAL_REVIEW) for the tournament,
+   *   newest first.
+   */
   app.get(
     "/reviews/:tournamentId",
     { preHandler: [requireAdmin] },
@@ -166,8 +215,18 @@ export async function replayRoutes(app: FastifyInstance) {
     }
   );
 
-  // PATCH /api/replays/:replayId/resolve — admin resolves a flagged replay:
-  // sets the final verification verdict and records who resolved it when.
+  /**
+   * PATCH /api/replays/:replayId/resolve
+   * Auth: ADMIN required.
+   * Params: replayId.
+   * Body: { verification: "VERIFIED" | "MISMATCH" | "MANUAL_REVIEW" }
+   * Response 200: { replay: TournamentReplay } with updated verification,
+   *   resolvedAt timestamp, and resolvedById (the admin's user id).
+   * Response 400: invalid verification value.
+   * Response 404: replay not found.
+   * Note: PENDING is not a valid target state for resolve — admins must
+   *   commit to a final verdict.
+   */
   app.patch(
     "/:replayId/resolve",
     { preHandler: [requireAdmin] },

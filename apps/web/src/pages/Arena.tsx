@@ -1,3 +1,38 @@
+/**
+ * Arena page
+ *
+ * Routes:   /arena (and "/" when authenticated); see the App.tsx catch-all route
+ * Auth:     Behind RequireAuth.
+ *
+ * Purpose:  PvP challenge lobby. Authenticated users can list themselves as
+ *           available and challenge other listed players. Matches create a
+ *           Series that players complete in-game via Slippi direct connect.
+ *           Currently subscription-gated — non-subscribers see a coming-soon
+ *           banner (server still enforces subscription server-side).
+ *
+ * Data dependencies:
+ *   - useArena hook (hooks/useArena.ts) — manages arena entry list via
+ *     react-query + socket.io; query key: ["arena"]
+ *   - POST /challenges              — send a challenge to another player
+ *   Socket events (via useArena): "arena:update" refreshes the entry list.
+ *
+ * Local state:
+ *   - format / note: form fields for joining the arena (cleared on leave).
+ *   - setInArena: tracks optimistic join/leave state (unused in render —
+ *     actual state comes from myEntry derived from the live entry list).
+ *     TODO(cleanup): setInArena state is never read; can be removed if
+ *     useArena exposes an isPending flag instead.
+ *
+ * UI states:
+ *   - isLoading: full-page loading message.
+ *   - Not subscribed: yellow coming-soon banner replaces arena controls.
+ *   - Subscribed, not in arena: join controls (format select + note).
+ *   - Subscribed, in arena: "Leave Arena" button only (format/note hidden).
+ *   - Entry list empty: "No one in the arena" placeholder.
+ *   - Entry list populated: one card per entry; own entry shows "You" label,
+ *     others show a "Challenge" button (only when viewer is subscribed).
+ */
+
 import { useState } from "react";
 import { useArena } from "../hooks/useArena";
 import { useAuthStore } from "../hooks/useAuth";
@@ -7,6 +42,10 @@ import { api } from "../lib/api";
 export default function Arena() {
   const { entries, isLoading, joinArena, leaveArena } = useArena();
   const { user, isSubscribed } = useAuthStore();
+  // setInArena is never read — actual in-arena state derives from myEntry
+  // (the live query result). The setter is kept to allow optimistic UI
+  // feedback if needed in the future.
+  // TODO(cleanup): consider removing setInArena if no optimistic state is added.
   const [, setInArena] = useState(false);
   const [format, setFormat] = useState<Format>("BO3");
   const [note, setNote] = useState("");

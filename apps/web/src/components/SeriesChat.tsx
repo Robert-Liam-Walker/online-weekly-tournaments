@@ -1,7 +1,42 @@
+/**
+ * SeriesChat — in-match chat panel for a Series room.
+ *
+ * PURPOSE
+ *   Provides a collapsible real-time chat widget visible only to the two
+ *   players in a series (enforced server-side; the UI shows a note to that
+ *   effect). Messages appear as a scrolling log; Enter or the Send button
+ *   submits a message.
+ *
+ * PROPS
+ *   seriesId — the UUID of the series to join and chat within.
+ *
+ * WHERE USED
+ *   apps/web/src/pages/Series.tsx (Agent C's page).
+ *
+ * KEY BEHAVIOR
+ *   Socket events:
+ *     Emits  "series:join"       { seriesId } on mount — subscribes the
+ *                                socket to this series room server-side.
+ *     Listens "series:chat:message" (ChatMsg) — appends to message list.
+ *     Emits  "series:chat:send"  { seriesId, content } on send.
+ *     Cleans up the listener (but not the room subscription) on unmount.
+ *
+ *   Auto-scroll: scrolls to the bottom ref whenever a new message arrives
+ *   or the panel is re-opened.
+ *
+ *   Collapse: toggled by the header button; state is local — panel starts
+ *   open.
+ *
+ *   Input: maxLength 500; disabled Send button when input is blank.
+ *
+ *   Own messages are highlighted in blue-400; opponent's in gray-300.
+ */
+
 import { useEffect, useRef, useState } from "react";
 import { getSocket } from "../lib/socket";
 import { useAuthStore } from "../hooks/useAuth";
 
+/** Shape of a single chat message received from the server. */
 interface ChatMsg {
   userId: string;
   username: string;
@@ -31,6 +66,7 @@ export default function SeriesChat({ seriesId }: { seriesId: string }) {
     if (open) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, open]);
 
+  /** Emit the current input as a chat message and clear the field. */
   function send() {
     const trimmed = input.trim();
     if (!trimmed) return;

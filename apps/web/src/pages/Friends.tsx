@@ -1,3 +1,34 @@
+/**
+ * Friends page
+ *
+ * Route:    /friends  (rendered inside RequireAuth + Layout in App.tsx)
+ * Auth:     Behind RequireAuth.
+ *
+ * Purpose:  Friend list management — send requests by username, accept or
+ *           decline incoming requests, and remove existing friends.
+ *           Incoming requests are refreshed in real time via socket.io.
+ *
+ * Data dependencies:
+ *   - GET    /friends                         — accepted friend list
+ *   - GET    /friends/requests/incoming       — pending incoming requests
+ *   - POST   /friends/request                 — send a request by username
+ *   - PATCH  /friends/request/:id/accept      — accept a request
+ *   - PATCH  /friends/request/:id/decline     — decline a request
+ *   - DELETE /friends/:friendId               — remove an accepted friend
+ *   Query keys: ["friends"], ["friends", "incoming"]
+ *   Socket event (in): "friend:request" — invalidates ["friends","incoming"]
+ *
+ * Local state:
+ *   - username: input value for the "Add friend" form.
+ *   - sendError / sendSuccess: feedback for the send-request mutation.
+ *
+ * UI states:
+ *   - Incoming section: hidden when no pending requests; shows count badge.
+ *   - Friends list loading: centered "Loading..." text.
+ *   - Friends list empty: "No friends yet" prompt.
+ *   - Friends list populated: one card per friend with a Remove button.
+ */
+
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";

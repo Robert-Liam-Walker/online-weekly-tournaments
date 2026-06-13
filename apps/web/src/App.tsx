@@ -1,3 +1,52 @@
+/**
+ * App.tsx — root of the React application.
+ *
+ * ROUTING MAP
+ * ──────────────────────────────────────────────────────────────────────────
+ * Public (no auth required):
+ *   /              → Home (see below)
+ *   /login         → Login page
+ *   /forgot-password → ForgotPasswordPage
+ *   /reset-password  → ResetPasswordPage
+ *   /download      → Download page
+ *   /terms         → Terms of Service
+ *   /privacy       → Privacy Policy
+ *
+ * "/" split (Home component):
+ *   - No token  → Landing (public marketing page, no Nav/Layout)
+ *   - Has token → RequireAuth → Layout + Arena (validates token via /auth/me)
+ *
+ * RequireAuth-gated (catch-all "/*", renders inside Layout with Nav):
+ *   /arena                → Arena (lobby)
+ *   /tournaments          → Tournament list
+ *   /tournaments/:id      → TournamentDetail
+ *   /tournaments/success  → Tournaments (post-payment return; no dedicated page)
+ *   /series/:id           → Series (match room)
+ *   /device               → Device (Slippi folder setup)
+ *   /friends              → Friends
+ *   /feed                 → Activity feed
+ *   /subscribe            → Subscribe (Stripe landing — dormant; see note)
+ *   /subscribe/success    → Subscribe (post-Stripe return)
+ *   /settings             → Settings
+ *   /admin                → Admin (rendered for all authed users; the page
+ *                           itself enforces the ADMIN role check)
+ *
+ * ADMIN nav link: rendered only when user.role === "ADMIN".
+ *
+ * STRIPE NOTE: The /subscribe route is live by URL but hidden from the Nav.
+ * Stripe integration ships with step 2 (paid $5/mo tier). Until then
+ * Subscribe shows a coming-soon message and the subscription flag stays FREE.
+ * ──────────────────────────────────────────────────────────────────────────
+ *
+ * QUERYCLIENT CONFIG
+ *   retry: false — react-query will not auto-retry failed requests.
+ *   All other defaults apply (staleTime: 0, gcTime: 5 min, etc.).
+ *
+ * LAYOUT
+ *   Layout wraps authed pages with <Nav> (top bar) and <ChallengeNotification>
+ *   (global fixed-position challenge toast). Public pages render without it.
+ */
+
 import { BrowserRouter, Routes, Route, NavLink, useNavigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Arena from "./pages/Arena";
@@ -22,12 +71,25 @@ import ChallengeNotification from "./components/ChallengeNotification";
 import RandallIcon from "./components/RandallIcon";
 import { useAuthStore } from "./hooks/useAuth";
 
+/**
+ * Shared QueryClient instance.
+ * retry:false — API errors surface immediately rather than being retried.
+ */
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: false },
   },
 });
 
+/**
+ * Nav — top navigation bar, rendered inside all authed Layout pages.
+ *
+ * Shows: logo + app name, main nav links (Arena, Tournaments, Download,
+ * Friends, Feed), Admin link (ADMIN role only), current username, Settings,
+ * and a Sign-out button.
+ *
+ * The /subscribe link is intentionally absent — see Stripe note above.
+ */
 function Nav() {
   const { user, clearAuth } = useAuthStore();
   const navigate = useNavigate();
@@ -70,6 +132,11 @@ function Nav() {
   );
 }
 
+/**
+ * Layout — shell for all authed pages.
+ * Renders Nav at the top, page content in <main>, and the global
+ * ChallengeNotification overlay (fixed-position, outside the scroll flow).
+ */
 function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -80,9 +147,16 @@ function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-// "/" split: logged-out visitors (no auth token) get the public marketing
-// landing page; anyone with a token gets the authed app exactly as before
-// (RequireAuth still validates the token and bounces to /login if stale).
+/**
+ * Home — handles the "/" route split.
+ *
+ * Logged-out (no token in store): renders the public Landing page directly,
+ * with no Nav or Layout wrapper — purely a marketing surface.
+ *
+ * Logged-in (token present): wraps Arena in RequireAuth + Layout, so the
+ * token is verified against /auth/me before rendering. RequireAuth will
+ * redirect to /login if the token turns out to be stale.
+ */
 function Home() {
   const token = useAuthStore((s) => s.token);
   if (!token) {
@@ -97,6 +171,7 @@ function Home() {
   );
 }
 
+/** Root application component. Provides QueryClient + BrowserRouter context. */
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>

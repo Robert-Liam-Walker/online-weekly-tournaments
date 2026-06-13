@@ -1,11 +1,33 @@
+/**
+ * Landing page — public marketing homepage
+ *
+ * Route:    /  (only when the visitor has no auth token; see Home() in App.tsx)
+ *           Authenticated users hitting "/" are redirected to Arena instead.
+ * Auth:     Public — no RequireAuth. Token-check is done in App.tsx's Home().
+ *
+ * Purpose:  Top-of-funnel marketing page. Shows the hero, per-region next-
+ *           start countdown cards (computed client-side), and a "How it works"
+ *           numbered steps section. Links to /download and /login.
+ *
+ * Data dependencies:  none (no API calls, no react-query).
+ *   Next-start times are computed entirely client-side using the browser's
+ *   Intl.DateTimeFormat API and each region's IANA time zone. useMemo ensures
+ *   this runs only once per page load.
+ *
+ * Time-zone helpers (module-local):
+ *   wallClockIn()        — decompose a UTC instant into wall-clock parts for a zone.
+ *   zonedEightPmToUtc()  — two-pass DST-safe conversion: local 20:00 → UTC Date.
+ *   nextRegionStart()    — next 8pm in the given zone (today if still future,
+ *                          otherwise tomorrow).
+ *   formatLocal()        — format a UTC Date in the viewer's own browser locale/zone.
+ *
+ * UI states:  single static render; no loading/error/empty state.
+ */
+
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import RandallIcon from "../components/RandallIcon";
 import PublicFooter from "../components/PublicFooter";
-
-// Public marketing homepage. Served at "/" for logged-out visitors.
-// Renders with ZERO backend dependency — the next-start times below are
-// computed entirely client-side from the regions' IANA time zones.
 
 interface Region {
   name: string;

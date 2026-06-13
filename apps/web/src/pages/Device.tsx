@@ -1,9 +1,29 @@
+/**
+ * Device page
+ *
+ * Route:    /device  (rendered inside RequireAuth + Layout in App.tsx)
+ * Auth:     Behind RequireAuth.
+ *
+ * Purpose:  One-time device-link flow. The FoxTrot Dolphin client displays a
+ *           6-character alphanumeric code when it needs to associate itself
+ *           with a web account. The user types that code here to complete the
+ *           link; after linking the game polls /device/link/status and picks
+ *           up the association within a few seconds.
+ *
+ * Data dependencies:
+ *   - POST /device/link/confirm   — validates the code and creates the link
+ *
+ * UI states:
+ *   - idle: 6-char input + "Link device" button (disabled until 6 chars entered).
+ *   - pending: button shows "Linking…".
+ *   - success: green confirmation card; form hidden.
+ *   - error: red inline error below the button.
+ */
+
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "../lib/api";
 
-// Confirm a device link code shown by the FoxTrot Dolphin client. Links the
-// game to this account so it stops relying on connect-code trust.
 export default function Device() {
   const [code, setCode] = useState("");
 

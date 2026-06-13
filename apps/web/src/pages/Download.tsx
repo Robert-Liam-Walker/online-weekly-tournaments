@@ -1,6 +1,23 @@
-// Public downloads page — the funnel's front door. Links the latest
-// published launcher installer (GitHub Releases serves the asset; the
-// /latest/download path always points at the newest version).
+/**
+ * Download page
+ *
+ * Route:    /download  (public, no auth wrapper in App.tsx)
+ * Auth:     Public — no RequireAuth.
+ *
+ * Purpose:  Marketing funnel front door. Shows the Windows launcher download
+ *           button and a numbered setup guide. Zero backend dependency — all
+ *           content is static; the GitHub Releases URL is hardcoded.
+ *
+ * Data dependencies:  none (no API calls, no react-query).
+ *
+ * Constants:
+ *   INSTALLER_URL — direct .exe download from GitHub Releases (latest tag,
+ *                   hardcoded version; update when a new release ships).
+ *   RELEASES_URL  — GitHub Releases page for the "all releases" link.
+ *   STEPS         — ordered setup instructions rendered as numbered cards.
+ *
+ * UI states:  single static render; no loading/error/empty state.
+ */
 
 import PublicFooter from "../components/PublicFooter";
 

@@ -1,27 +1,49 @@
+/**
+ * udpRegistrar.ts — UDP rendezvous registrar for peer-to-peer match setup.
+ *
+ * Purpose:
+ *   Listens on a UDP port and accepts "announce" packets from game clients that
+ *   are trying to establish a direct (peer-to-peer) connection for a match. Each
+ *   client sends its LAN endpoint (private IP:port) and a shared match token;
+ *   the registrar stores both clients' WAN+LAN endpoints in Redis and echoes
+ *   them back once both sides have checked in (rendezvous). The actual state
+ *   machine lives in lib/rendezvous.ts.
+ *
+ * Design:
+ *   Deliberately stateless beyond the Redis store: any API instance behind the
+ *   same Redis cluster can handle any client, enabling horizontal scaling without
+ *   sticky sessions.
+ *
+ * Security hardening:
+ *   - Request length cap (256 B) + strict Zod schema + single-datagram JSON only.
+ *   - `lan` field must be a valid IPv4 private-range ip:port (10/8, 172.16/12,
+ *     192.168/16); loopback (127.x) is also accepted outside production so that
+ *     localhost smoke tests work without VPN. IPv6 is out of scope for v1.
+ *   - Per-IP and per-token Redis rate counters; packets exceeding the cap are
+ *     DROPPED silently (no error reply) — replying to a spoofed source address
+ *     would turn this server into a UDP reflector/amplifier.
+ *   - Responses are hard-capped at 512 B as a secondary anti-amplification
+ *     ceiling (an oversized response is dropped rather than truncated).
+ *   - Every rejected packet logs a structured reason code for NAT/firewall
+ *     debugging without leaking internal state to clients.
+ *
+ * Lifecycle:
+ *   startUdpRegistrar() is called from src/index.ts only when
+ *   RENDEZVOUS_UDP_PORT is set to a valid port number. Returns the dgram.Socket
+ *   so the caller can call .close() on SIGTERM.
+ */
 import dgram from "dgram";
 import { z } from "zod";
 import { redis } from "./lib/redis";
 import { handleAnnounce, RdvResponse } from "./lib/rendezvous";
 
-// UDP shell for the match rendezvous (see lib/rendezvous.ts for the state
-// machine). Deliberately stateless: every packet is resolved against Redis,
-// so any API instance behind the same Redis can serve any client.
-//
-// Hardening:
-//   - request length cap (256B) + strict zod schema, single-datagram JSON
-//   - `lan` must be a valid IPv4 private-range ip:port (loopback allowed
-//     outside production so localhost smokes work); IPv6 out of scope v1
-//   - per-IP and per-token rate caps (Redis counters); over-cap packets are
-//     DROPPED, not answered — an error reply to a spoofed source address
-//     would make us a reflector
-//   - responses are hard-capped at 512B (anti-amplification ceiling)
-//   - every rejected packet logs a reason code so NAT debugging is tractable
-
 const MAX_REQUEST_BYTES = 256;
 const MAX_RESPONSE_BYTES = 512;
-/** per-IP: 50 packets / 10s (an active client sends ~2/s) */
+/** Per-IP rate cap: 50 packets per 10 s. Active clients send ~2 packets/s
+ *  (one announce at connect, then polling every ~5 s), so this leaves ~25×
+ *  headroom for a single well-behaved client and still throttles flood attacks. */
 const IP_LIMIT = { max: 50, windowSeconds: 10 };
-/** per-token: 120 packets / 60s */
+/** Per-match-token rate cap: 120 packets per 60 s (2 clients × ~1/s with margin). */
 const TOKEN_LIMIT = { max: 120, windowSeconds: 60 };
 
 const announceSchema = z.object({
@@ -32,12 +54,26 @@ const announceSchema = z.object({
   lan: z.string().max(24),
 });
 
+/** Minimal structured logger interface; satisfied by Fastify's built-in logger. */
 export interface RegistrarLogger {
   info: (obj: object, msg: string) => void;
   warn: (obj: object, msg: string) => void;
 }
 
-/** "a.b.c.d:port" with an IPv4 private-range (or dev loopback) address. */
+/**
+ * Parse and validate a LAN endpoint string of the form "a.b.c.d:port".
+ *
+ * Accepted addresses:
+ *   - IPv4 private ranges: 10/8, 172.16–31/12, 192.168/16
+ *   - Loopback (127.x): only when allowLoopback is true (i.e., non-production)
+ *
+ * Returns null for any malformed, out-of-range, or non-private address so the
+ * caller can drop the packet rather than storing an attacker-controlled address.
+ *
+ * @param lan           - Raw "ip:port" string from the announce packet.
+ * @param allowLoopback - True outside production (enables localhost smoke tests).
+ * @returns Parsed { ip, port } or null if invalid/non-private.
+ */
 export function parseLanEndpoint(
   lan: string,
   allowLoopback: boolean
@@ -55,6 +91,18 @@ export function parseLanEndpoint(
   return { ip: octets.join("."), port };
 }
 
+/**
+ * Increment a Redis sliding-window counter for `id` and return true if the
+ * count has exceeded the cap for this window. The TTL is set only on the
+ * first increment (count === 1) to create a fixed window anchored at the
+ * first packet; subsequent packets in the same window do not reset the timer.
+ *
+ * Keys follow the pattern: foxtrot:rdv:rl:<kind>:<id>
+ *
+ * @param kind - "ip" for per-source-address limit, "tok" for per-match-token.
+ * @param id   - The IP address or token to bucket.
+ * @returns true if the caller should drop the packet.
+ */
 async function overRateLimit(kind: "ip" | "tok", id: string): Promise<boolean> {
   const limit = kind === "ip" ? IP_LIMIT : TOKEN_LIMIT;
   const key = `foxtrot:rdv:rl:${kind}:${id}`;
@@ -63,6 +111,18 @@ async function overRateLimit(kind: "ip" | "tok", id: string): Promise<boolean> {
   return count > limit.max;
 }
 
+/**
+ * Bind a UDP socket and start processing rendezvous announce packets.
+ *
+ * The socket processes each incoming datagram through the validation + rate-
+ * limit pipeline before delegating to handleAnnounce() in lib/rendezvous.ts.
+ * Error replies are sent even for validation failures so clients can surface
+ * a meaningful error; only rate-capped packets are silently dropped.
+ *
+ * @param port - UDP port to bind on (all interfaces, 0.0.0.0).
+ * @param log  - Structured logger (Fastify's logger satisfies RegistrarLogger).
+ * @returns The bound dgram.Socket; call .close() on SIGTERM.
+ */
 export function startUdpRegistrar(port: number, log: RegistrarLogger): dgram.Socket {
   const allowLoopback = process.env.NODE_ENV !== "production";
   const socket = dgram.createSocket("udp4");

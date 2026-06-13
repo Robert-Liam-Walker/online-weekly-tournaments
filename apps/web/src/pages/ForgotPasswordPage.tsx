@@ -1,10 +1,30 @@
+/**
+ * ForgotPasswordPage
+ *
+ * Route:    /forgot-password  (public, no auth wrapper in App.tsx)
+ * Auth:     Public — no RequireAuth.
+ *
+ * Purpose:  Step 1 of the password-reset flow. User enters their email; the
+ *           API queues a reset email if the address exists. The API always
+ *           returns 200 regardless of whether the email is registered (no
+ *           user enumeration), so the UI always shows the same success
+ *           message after submission.
+ *
+ * Data dependencies:
+ *   - POST /auth/forgot-password  — body: { email }; always 200 on success
+ *
+ * UI states:
+ *   - idle: email input + submit button.
+ *   - loading: button disabled, shows "...".
+ *   - sent: replaces form with green "check your inbox" confirmation.
+ *   - error: red error message above the submit button (network/server
+ *     failures only — a valid email submission always shows sent state).
+ */
+
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 
-// Request a password-reset email. The API always answers 200 (no user
-// enumeration), so after submitting we always show the same "check your
-// inbox" message.
 export default function ForgotPasswordPage() {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");

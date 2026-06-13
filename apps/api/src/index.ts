@@ -1,3 +1,41 @@
+/**
+ * src/index.ts — API server entry point.
+ *
+ * Responsibilities:
+ *   - Construct and configure the Fastify instance (security headers, CORS,
+ *     global rate limiting backed by Redis, JWT, multipart).
+ *   - Register all route plugins under /api/* (see route registration block
+ *     below for the full list with their prefix paths).
+ *   - Register Socket.io on the same HTTP server port (single-port deployment).
+ *   - Start the tournament scheduler and optional UDP rendezvous registrar.
+ *   - Expose the `io` Socket.io server for direct emit from route files.
+ *   - Handle SIGTERM gracefully: drain Fastify, close Socket.io, disconnect
+ *     Prisma + Redis.
+ *
+ * Route prefixes:
+ *   POST /api/webhooks/stripe    — Stripe webhook (raw body required; registered first)
+ *   /api/auth/*                  — registration, login, password reset, /me
+ *   /api/subscriptions/*         — Stripe checkout + billing portal
+ *   /api/arena/*                 — arena presence (list/join/leave)
+ *   /api/challenges/*            — challenge lifecycle (send/accept/decline)
+ *   /api/series/*                — series score reporting + replay upload
+ *   /api/friends/*               — friend requests + friend list
+ *   /api/tournaments/*           — tournament CRUD, bracket, check-in, results
+ *   /api/device/*                — device link flow (game client ↔ web auth)
+ *   /api/replays/*               — tournament replay upload + admin review
+ *   /api/chat/*                  — channel chat history (REST)
+ *   /api/launcher/*              — launcher manifest (Dolphin/gamefiles versions)
+ *   GET /health                  — ALB health probe (DB + Redis, exempt from rate limit)
+ *
+ * Key invariants:
+ *   - JWT_SECRET must be set; the process refuses to boot without it.
+ *   - The Stripe webhook route is registered before any JSON body parser so it
+ *     receives a raw Buffer (Stripe signature verification requires this).
+ *   - Rate limiting is global (300 req/min/IP via Redis); auth and device routes
+ *     install stricter per-route overrides. The /health route is exempt.
+ *   - RENDEZVOUS_UDP_PORT must be explicitly set to enable the UDP registrar;
+ *     omitting it is safe and expected in dev/test.
+ */
 import "dotenv/config";
 import Fastify from "fastify";
 import cors from "@fastify/cors";

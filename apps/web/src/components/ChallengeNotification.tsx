@@ -1,3 +1,45 @@
+/**
+ * ChallengeNotification — global realtime challenge toast.
+ *
+ * PURPOSE
+ *   Renders a fixed-position card (bottom-right) when the current user has
+ *   an incoming challenge waiting for a response. Shows one challenge at a
+ *   time (the oldest pending one). Provides Accept / Decline actions.
+ *
+ * PROPS
+ *   None. Reads the current user from useAuthStore and registers socket
+ *   listeners unconditionally; skips network calls when user is null.
+ *
+ * WHERE USED
+ *   Mounted once inside Layout (App.tsx), so it is present on every authed
+ *   page and persists across client-side navigations.
+ *
+ * KEY BEHAVIOR
+ *   Polling:
+ *     Polls GET /challenges/pending every 15 s while user is logged in.
+ *     On mount (or after an accept/decline) the oldest pending challenge from
+ *     the poll response is shown if no challenge is currently active.
+ *
+ *   Socket events:
+ *     "challenge:receive" — a new challenge arrived; invalidates the pending
+ *       query and sets the active toast if none is showing.
+ *     "challenge:accepted" — the challenger's client accepted our outgoing
+ *       challenge; clears the toast and navigates to /series/:id.
+ *       (This fires on the CHALLENGER's side, not the receiver's.)
+ *
+ *   Accept flow:
+ *     PATCH /challenges/:id/accept → clears toast, invalidates query,
+ *     navigates to /series/:seriesId from the response.
+ *
+ *   Decline flow:
+ *     PATCH /challenges/:id/decline → clears toast, invalidates query.
+ *
+ *   While either action is in-flight, `responding` disables both buttons to
+ *   prevent double-submission.
+ *
+ *   If no active challenge, renders null (no DOM node).
+ */
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +55,7 @@ export default function ChallengeNotification() {
   const [active, setActive] = useState<Challenge | null>(null);
   const [responding, setResponding] = useState(false);
 
+  /** Poll for pending challenges every 15 s; only runs when logged in. */
   const { data: pending = [] } = useQuery<Challenge[]>({
     queryKey: ["challenges", "pending"],
     queryFn: () => api.get("/challenges/pending").then((r) => r.data),
@@ -48,6 +91,7 @@ export default function ChallengeNotification() {
     };
   }, [user, navigate, queryClient]);
 
+  /** Accept the active challenge. Navigates to the created series on success. */
   async function accept() {
     if (!active) return;
     setResponding(true);
@@ -61,6 +105,7 @@ export default function ChallengeNotification() {
     }
   }
 
+  /** Decline the active challenge. */
   async function decline() {
     if (!active) return;
     setResponding(true);

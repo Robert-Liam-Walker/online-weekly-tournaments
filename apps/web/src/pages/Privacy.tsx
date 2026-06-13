@@ -1,6 +1,17 @@
-import PublicFooter from "../components/PublicFooter";
+/**
+ * Privacy page
+ *
+ * Route:    /privacy  (public, no auth wrapper in App.tsx)
+ * Auth:     Public — no RequireAuth.
+ *
+ * Purpose:  Plain-language privacy policy. Static content only; no API calls.
+ *
+ * Data dependencies:  none.
+ *
+ * UI states:  single static render.
+ */
 
-// Public /privacy page. Honest, plain-language privacy policy.
+import PublicFooter from "../components/PublicFooter";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (

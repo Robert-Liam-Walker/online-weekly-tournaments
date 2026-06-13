@@ -1,3 +1,32 @@
+/**
+ * routes/auth.ts — Authentication endpoints and password-reset helpers.
+ *
+ * Endpoints (all under /api/auth):
+ *   POST /register          — create account; returns JWT (7d). Rate limited (10/min).
+ *   POST /login             — credential check; returns JWT (7d). Rate limited (10/min).
+ *   POST /forgot-password   — send reset email (5 requests/15 min; always 200).
+ *   POST /reset-password    — consume reset token; update password. Rate limited (10/min).
+ *   GET  /me                — return full profile for the authenticated user (JWT required).
+ *
+ * Password-reset design:
+ *   Only the SHA-256 hex of the emailed token is stored in the DB; the raw
+ *   token exists solely in the reset URL. The token is a 32-byte random hex
+ *   string (256 bits of entropy). Consumption is protected by a conditional
+ *   UPDATE inside a transaction so concurrent double-submits only succeed once.
+ *   TTL is 60 minutes (RESET_TOKEN_TTL_MS). The forgot-password endpoint always
+ *   returns 200 to prevent user enumeration.
+ *
+ * Admin bootstrap:
+ *   If ADMIN_EMAIL is set and the registering email matches, the new account
+ *   is created directly as ADMIN. This is idempotent with the boot-time
+ *   promotion in src/index.ts: whichever runs first wins, and the second is
+ *   a no-op.
+ *
+ * Removed endpoint:
+ *   /game-login was removed in Phase 3 (2026-06-12). Game clients now
+ *   authenticate via the device-link flow (routes/device.ts) or through
+ *   the launcher (which writes foxtrot-token.txt after web login).
+ */
 import { createHash, randomBytes } from "crypto";
 import { FastifyInstance } from "fastify";
 import bcrypt from "bcryptjs";
@@ -118,6 +147,16 @@ export async function resetPasswordWithToken(
 }
 
 export async function authRoutes(app: FastifyInstance) {
+  /**
+   * POST /api/auth/register
+   * Auth: public (no JWT).
+   * Rate limit: 10 req/min/IP (strictRateLimit).
+   * Body: { username: string (3-15 alphanumeric), email: string, password: string (min 8) }
+   * Response 201: { user: { id, username, email, subscriptionStatus }, token: string (JWT 7d) }
+   * Response 400: validation error.
+   * Response 409: email or username already in use.
+   * Side effects: creates User row; promotes to ADMIN if email matches ADMIN_EMAIL.
+   */
   app.post("/register", { config: strictRateLimit }, async (request, reply) => {
     const body = registerSchema.safeParse(request.body);
     if (!body.success) {
@@ -155,6 +194,15 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.code(201).send({ user, token });
   });
 
+  /**
+   * POST /api/auth/login
+   * Auth: public (no JWT).
+   * Rate limit: 10 req/min/IP.
+   * Body: { email: string, password: string }
+   * Response 200: { user: { id, username, email, subscriptionStatus }, token: string (JWT 7d) }
+   * Response 400: validation error.
+   * Response 401: invalid credentials (deliberately generic — no field-level oracle).
+   */
   app.post("/login", { config: strictRateLimit }, async (request, reply) => {
     const body = loginSchema.safeParse(request.body);
     if (!body.success) {
@@ -234,6 +282,13 @@ export async function authRoutes(app: FastifyInstance) {
   // launcher login (writes foxtrot-token.txt) or the in-game device-link
   // flow; dev tooling mints tokens with scripts/mint-dev-token.ts.
 
+  /**
+   * GET /api/auth/me
+   * Auth: JWT required (inline jwtVerify, not requireAuth — equivalent behavior).
+   * Response 200: full User profile { id, username, email, role, subscriptionStatus,
+   *   subscriptionEndsAt, createdAt }.
+   * Response 401: invalid or missing JWT.
+   */
   app.get(
     "/me",
     { preHandler: [(req, rep) => req.jwtVerify()] },

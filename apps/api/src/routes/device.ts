@@ -1,14 +1,31 @@
+/**
+ * routes/device.ts — Device link flow (game client ↔ web authentication).
+ *
+ * Replaces the old /game-login connect-code model (removed Phase 3, 2026-06-12).
+ * Allows a game client that has no web session to obtain a JWT by having the
+ * player confirm the link from their already-authenticated browser session.
+ *
+ * Flow:
+ *   1. Game client:   POST /api/device/link/start    → { code, expiresInMinutes }
+ *                     Displays the 6-char code in-game to the player.
+ *   2. Web player:    POST /api/device/link/confirm  { code }   (JWT required)
+ *                     Binds the code to the authenticated user.
+ *   3. Game client:   GET  /api/device/link/status?code=...
+ *                     Polls (≈every 3 s) until status is "CONFIRMED", then
+ *                     receives a 30-day JWT. Code is consumed (one-time use).
+ *
+ * Code alphabet excludes visually ambiguous characters (0/O, 1/I) to reduce
+ * transcription errors. TTL is 10 minutes; expired codes return EXPIRED status.
+ *
+ * Endpoints (under /api/device):
+ *   POST /link/start    — mint a link code (unauthenticated; 10 req/min/IP)
+ *   POST /link/confirm  — bind code to authenticated user (JWT required; 15 req/min/IP)
+ *   GET  /link/status   — poll status; returns JWT once on CONFIRMED (60 req/min/IP)
+ */
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../plugins/auth";
-
-// Device link flow (replaces the game-login connect-code trust model):
-//   1. Game client: POST /api/device/link/start          -> { code }
-//      and shows the code in-game.
-//   2. Player, logged in on the web: POST /link/confirm { code }
-//   3. Game client polls GET /link/status?code=...       -> { status }
-//      and on CONFIRMED receives a JWT once (the code is consumed).
 
 const CODE_TTL_MINUTES = 10;
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I
@@ -22,8 +39,13 @@ function generateCode(): string {
 }
 
 export async function deviceRoutes(app: FastifyInstance) {
-  // Game client requests a link code (unauthenticated by design).
-  // Rate limited hard: each call writes a row, so cap code minting per IP.
+  /**
+   * POST /api/device/link/start
+   * Auth: none (unauthenticated by design — the game client has no session yet).
+   * Rate limit: 10 req/min/IP (each call writes a DeviceLinkCode row).
+   * Response 200: { code: string (6 chars), expiresInMinutes: 10 }
+   * Side effects: creates a DeviceLinkCode row with a 10-minute expiry.
+   */
   app.post(
     "/link/start",
     { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
@@ -39,7 +61,18 @@ export async function deviceRoutes(app: FastifyInstance) {
     }
   );
 
-  // Logged-in player confirms the code shown by their game client
+  /**
+   * POST /api/device/link/confirm
+   * Auth: JWT required (the web-logged-in player confirms for themselves).
+   * Rate limit: 15 req/min/IP.
+   * Body: { code: string (exactly 6 chars, case-insensitive) }
+   * Response 200: { confirmed: true }
+   * Response 400: invalid code format.
+   * Response 404: unknown code.
+   * Response 409: code already confirmed.
+   * Response 410: code expired.
+   * Side effects: sets DeviceLinkCode.userId + confirmedAt.
+   */
   app.post(
     "/link/confirm",
     {
@@ -67,9 +100,21 @@ export async function deviceRoutes(app: FastifyInstance) {
     }
   );
 
-  // Game client polls until confirmed; the token is handed out exactly once.
-  // Poll cadence is ~3s (20/min) for up to 10 minutes — 60/min leaves 3x
-  // headroom so a legitimate client can never trip the limit.
+  /**
+   * GET /api/device/link/status
+   * Auth: none (game client has no JWT yet; the code serves as the credential).
+   * Rate limit: 60 req/min/IP. Poll cadence is ~3 s (≈20/min), leaving 3×
+   *   headroom so a well-behaved client never trips the limit during the 10-min window.
+   * Query params: code (required) — the 6-char code from /link/start.
+   * Response 200 (polling): { status: "PENDING" | "EXPIRED" }
+   * Response 200 (completed): { status: "CONFIRMED", user: { id, username }, token: string (JWT 30d) }
+   *   The JWT is returned exactly once — the code is marked consumedAt and any
+   *   subsequent poll returns 410.
+   * Response 400: missing code param.
+   * Response 404: unknown code or linked user not found.
+   * Response 410: code already consumed (token was already issued).
+   * Side effects: sets DeviceLinkCode.consumedAt on first CONFIRMED read.
+   */
   app.get(
     "/link/status",
     { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },

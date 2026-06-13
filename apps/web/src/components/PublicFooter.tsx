@@ -1,3 +1,17 @@
+/**
+ * PublicFooter — footer for public (logged-out) pages.
+ *
+ * PURPOSE
+ *   Renders a minimal footer with the product tagline and links to Download,
+ *   Terms, and Privacy.
+ *
+ * PROPS
+ *   None.
+ *
+ * WHERE USED
+ *   Public pages only: Landing, Download, Terms, Privacy (Agent C's pages).
+ *   Not used inside the authed Layout — the Nav at the top serves authed pages.
+ */
 import { Link } from "react-router-dom";
 
 // Shared footer for the public (logged-out) pages: landing, download,

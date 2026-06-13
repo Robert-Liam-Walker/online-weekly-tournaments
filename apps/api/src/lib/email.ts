@@ -1,3 +1,41 @@
+/**
+ * email.ts — Outbound email with SES (production) and console (dev) backends.
+ *
+ * Purpose: Send transactional emails (currently: password reset). Provides one
+ * narrow surface (sendEmail) with two backends selected by environment variable,
+ * mirroring the same dual-backend pattern as replayStorage.ts.
+ *
+ * Backends:
+ *   SES (production) — active when SES_FROM_EMAIL is set. AWS credentials come
+ *     from the default provider chain (env vars, shared config, or the EC2/ECS
+ *     instance role on Elastic Beanstalk — none are passed explicitly here).
+ *     SES identities are verified in us-east-1; the region is pinned there.
+ *
+ *   Console (dev, default) — when SES_FROM_EMAIL is unset, the email body is
+ *     printed to stdout and the call resolves immediately. This is intentional:
+ *     password-reset URLs are readable from the server log in dev, which is the
+ *     only delivery channel (no actual email sent). Smoke scripts read the link
+ *     from here.
+ *
+ * From address:
+ *   If SES_FROM_EMAIL contains no "<" character, the FROM_DISPLAY_NAME is
+ *   prepended to produce a branded "Randall's Nightly Tournaments <addr>" header.
+ *   If the env var already includes the angle-bracket form, it is used as-is.
+ *
+ * Key exports:
+ *   sendEmail             — low-level send (to/subject/text/html).
+ *   sendPasswordResetEmail — high-level helper that composes text + HTML for the
+ *                            standard password-reset flow.
+ *   SendEmailInput        — input type for sendEmail.
+ *
+ * Invariants:
+ *   - RESET_LINK_EXPIRY_TEXT must stay in sync with RESET_TOKEN_TTL_MS in
+ *     routes/auth.ts (currently 60 minutes). A comment marks the coupling.
+ *   - The HTML template escapes all user-supplied values (username, resetUrl)
+ *     via escapeHtml to prevent XSS in email clients that render HTML.
+ *   - The SESClient is lazily created and cached; never instantiate SESClient
+ *     directly outside this module.
+ */
 import { SendEmailCommand, SESClient } from "@aws-sdk/client-ses";
 
 // Outbound email with two backends behind one narrow surface (same shape as
@@ -35,6 +73,15 @@ export interface SendEmailInput {
   html?: string;
 }
 
+/**
+ * Send an email using the configured backend (SES or console fallback).
+ * @param input - recipient, subject, plain-text body, and optional HTML body.
+ *
+ * In dev (SES_FROM_EMAIL unset) the email is printed to stdout and resolves
+ * immediately — no actual email is sent.
+ *
+ * @throws {SESServiceException} on SES API errors in production.
+ */
 export async function sendEmail({ to, subject, text, html }: SendEmailInput): Promise<void> {
   const source = process.env.SES_FROM_EMAIL;
 
@@ -65,6 +112,11 @@ export async function sendEmail({ to, subject, text, html }: SendEmailInput): Pr
   );
 }
 
+/**
+ * Minimal HTML-entity escaper for user-supplied values embedded in the
+ * password-reset email HTML template. Covers the characters that matter in
+ * attribute and text contexts.
+ */
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -77,6 +129,16 @@ function escapeHtml(value: string): string {
 // Keep this in sync with RESET_TOKEN_TTL_MS in routes/auth.ts (60 minutes).
 const RESET_LINK_EXPIRY_TEXT = "60 minutes";
 
+/**
+ * Send a password-reset email to the given address.
+ * @param to       - recipient address.
+ * @param resetUrl - the full reset URL (already signed / token-embedded).
+ * @param username - optional display name for the greeting line.
+ *
+ * Sends both a plain-text and an HTML body. The URL and username are HTML-
+ * escaped in the HTML body to prevent injection. The link expiry text must
+ * match RESET_TOKEN_TTL_MS in routes/auth.ts.
+ */
 export async function sendPasswordResetEmail(
   to: string,
   resetUrl: string,

@@ -1,3 +1,28 @@
+/**
+ * Admin page
+ *
+ * Route:    /admin  (rendered inside RequireAuth + Layout in App.tsx)
+ * Auth:     Behind RequireAuth; additionally guards itself client-side with
+ *           a role === "ADMIN" check (server enforces requireAdmin on every
+ *           endpoint this page calls — the client check is UX only).
+ *
+ * Purpose:  Tournament-organizer console. Lets admins create new tournament
+ *           events. Per-event admin actions (DQ, match override, replay
+ *           review) live on TournamentDetail (/tournaments/:id).
+ *
+ * Data dependencies:
+ *   - POST /tournaments         — create a new tournament (CreateEventForm)
+ *   - GET  /tournaments         — list all tournaments (UpcomingEvents)
+ *   Query keys: ["tournaments"]
+ *
+ * UI states:
+ *   - Not admin: shows access-denied message (role missing from older
+ *     /auth/me payloads is treated as non-admin).
+ *   - Admin: create-event form + list of UPCOMING/REGISTRATION/ACTIVE events.
+ *   - Create form: idle / pending / success (shows link) / error.
+ *   - Event list: loading / empty / populated.
+ */
+
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -5,11 +30,8 @@ import { api } from "../lib/api";
 import { useAuthStore } from "../hooks/useAuth";
 import { Tournament, Format } from "../types";
 
-// Tournament-organizer console: create events and jump into the per-event
-// admin controls that live on the tournament detail page (DQ, match
-// override, replay review). Server enforces requireAdmin on everything here;
-// this page is just the front door.
-
+// TODO(cleanup): formatDate is identical to the copy in TournamentDetail.tsx
+// and Tournaments.tsx. Consider extracting to lib/dates.ts.
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", {
     weekday: "long",
