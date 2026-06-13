@@ -154,6 +154,29 @@ export async function tournamentRoutes(app: FastifyInstance) {
     return { checkoutUrl: session.url };
   });
 
+  // POST /api/tournaments/:id/unregister — drop out while still in registration
+  app.post("/:id/unregister", { preHandler: [requireAuth] }, async (request, reply) => {
+    const userId = (request.user as { id: string }).id;
+    const { id } = request.params as { id: string };
+
+    const tournament = await prisma.tournament.findUnique({ where: { id } });
+    if (!tournament) return reply.code(404).send({ error: "Tournament not found" });
+    if (tournament.status !== "REGISTRATION") {
+      return reply.code(409).send({ error: "Tournament is not open for registration" });
+    }
+
+    const entry = await prisma.tournamentEntry.findUnique({
+      where: { tournamentId_userId: { tournamentId: id, userId } },
+    });
+    if (!entry) return reply.code(404).send({ error: "Not registered for this tournament" });
+
+    await prisma.tournamentEntry.delete({
+      where: { tournamentId_userId: { tournamentId: id, userId } },
+    });
+    emitTournamentUpdate(id, "entry");
+    return reply.code(200).send({ ok: true });
+  });
+
   // POST /api/tournaments — create tournament (admins only)
   app.post("/", { preHandler: [requireAdmin] }, async (request, reply) => {
     const schema = z.object({
