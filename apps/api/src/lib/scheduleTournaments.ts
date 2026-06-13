@@ -1,4 +1,3 @@
-import cron from "node-cron";
 import { prisma } from "./prisma";
 import { startTournament, sweepNoShows } from "./bracketService";
 import { emitTournamentUpdate } from "./tournamentEvents";
@@ -50,17 +49,31 @@ export async function ensureNightlyTournaments(now: Date = new Date()) {
   }
 }
 
-/** Start (or cancel) any tournament whose scheduled time has arrived */
+/** Minutes past the scheduled start before an unstartable event cancels. */
+const START_GRACE_MINUTES = 30;
+
+/** Start (or, past the grace window, cancel) tournaments whose time arrived */
 export async function startDueTournaments() {
+  const now = new Date();
   const due = await prisma.tournament.findMany({
-    where: { status: "REGISTRATION", scheduledAt: { lte: new Date() } },
+    where: { status: "REGISTRATION", scheduledAt: { lte: now } },
   });
   for (const t of due) {
     const result = await startTournament(t.id);
-    if (result.started) emitTournamentUpdate(t.id, "started");
-    console.log(
-      `[scheduler] ${t.name}: ${result.started ? "started" : `not started (${result.reason})`}`
-    );
+    if (result.started) {
+      emitTournamentUpdate(t.id, "started");
+      console.log(`[scheduler] ${t.name}: started`);
+      continue;
+    }
+    // Long-overdue and still unstartable (e.g. fewer than 2 check-ins):
+    // cancel rather than re-evaluating forever.
+    if (now.getTime() - t.scheduledAt.getTime() > START_GRACE_MINUTES * 60_000) {
+      await prisma.tournament.update({ where: { id: t.id }, data: { status: "CANCELED" } });
+      emitTournamentUpdate(t.id, "canceled");
+      console.log(`[scheduler] ${t.name}: canceled (${result.reason}; past start grace)`);
+    } else {
+      console.log(`[scheduler] ${t.name}: not started (${result.reason})`);
+    }
   }
 }
 
@@ -105,11 +118,33 @@ export async function sweepNoShowTournaments() {
 export function startTournamentScheduler() {
   ensureNightlyTournaments().catch(console.error);
 
-  cron.schedule("* * * * *", async () => {
-    await ensureNightlyTournaments().catch(console.error); // cheap + idempotent
-    await startDueTournaments().catch(console.error);
-    await sweepNoShowTournaments().catch(console.error);
-  });
+  // Plain interval loop, NOT node-cron: node-cron v4 computes fire times
+  // from the OS timezone database, and the node:20-slim production image
+  // ships none — on prod the "every minute" schedule fired exactly once
+  // (at midnight UTC) and silently died, which disabled the no-show sweep
+  // and due-start entirely (found via the 2026-06-12 launch-gate test).
+  // setInterval has no such dependency. The overlap guard keeps a slow
+  // tick from stacking; the hourly heartbeat exists because every job in
+  // this loop is silent when idle — without it, a dead loop is invisible.
+  let ticking = false;
+  let ticks = 0;
+  setInterval(() => {
+    if (ticking) return;
+    ticking = true;
+    void (async () => {
+      try {
+        ticks++;
+        await ensureNightlyTournaments().catch(console.error); // cheap + idempotent
+        await startDueTournaments().catch(console.error);
+        await sweepNoShowTournaments().catch(console.error);
+        if (ticks % 60 === 0) {
+          console.log(`[scheduler] alive — ${ticks} ticks`);
+        }
+      } finally {
+        ticking = false;
+      }
+    })();
+  }, 60_000);
 
   console.log(
     "[scheduler] Nightly scheduler started (3 regional events/night at 20:00 local; due-start + no-show sweep every minute)."
