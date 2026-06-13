@@ -246,20 +246,42 @@ dedicated `/health` route yet (follow-up); any HTTP response (even a 404
 from `/`) proves liveness for the basic check. When moving to ALB health
 checks, add a real `/health` endpoint first and point the target group at it.
 
-## 6. SES (email — follow-up feature)
+## 6. SES (email — SHIPPED)
 
-Email sending is not in the api yet; provision SES now so it is warm when
-the feature lands:
+Email is live: `apps/api/src/lib/email.ts` uses `@aws-sdk/client-ses` (region
+pinned us-east-1, credentials from the EB instance role). It sends only when
+`SES_FROM_EMAIL` is set (otherwise it logs to the console — the dev fallback).
+Used for password-reset links today; account notifications as they land.
 
-1. SES → Verified identities → verify the domain `yourdomain.gg` (Route53
-   records are added automatically) — enables DKIM.
-2. New SES accounts are **sandboxed**: you can only send to verified
-   addresses, with low quotas. Request **production access** (SES →
-   Account dashboard → Request production access) — takes ~24h; do this
-   well before launch.
-3. When the feature lands, grant the EB instance role `ses:SendEmail` and
-   pass region/sender via env props (e.g. `SES_REGION`, `EMAIL_FROM`) —
-   coordinate names with the orchestrator.
+**Required IAM — do not skip.** The EB instance role
+`aws-elasticbeanstalk-ec2-role` MUST allow `ses:SendEmail`. Without it every
+send fails with `403 AccessDenied`, and because `/forgot-password` swallows the
+error and always returns `{ok:true}`, it looks like nothing is wrong while **no
+mail goes out**. This was a real production gap, fixed 2026-06-13 by attaching
+the inline policy `foxtrot-ses-send`:
+
+```json
+{ "Version": "2012-10-17",
+  "Statement": [ { "Sid": "FoxtrotSesSend", "Effect": "Allow",
+    "Action": ["ses:SendEmail", "ses:SendRawEmail"], "Resource": "*" } ] }
+```
+
+Apply with `aws iam put-role-policy --role-name aws-elasticbeanstalk-ec2-role
+--policy-name foxtrot-ses-send --policy-document <above>`. It is **CLI-applied,
+not in IaC — re-add it if the instance role is ever recreated.** (Optional
+hardening: scope `Resource` or add a `ses:FromAddress` condition once you've
+confirmed sends still succeed.)
+
+**Sandbox / production access — BACKLOGGED.** The account is still in the SES
+**sandbox**: it can only deliver to *verified* identities (the domain
+`randallsnightly.com` and any individually-verified address — a non-verified
+recipient gets `MessageRejected: Email address is not verified`). The
+production-access request (**case 178127710500151**) was **DENIED**, so
+real-user email stays blocked until it is re-requested and granted. Re-request
+via `aws sesv2 put-account-details ProductionAccessEnabled=true` with a stronger
+transactional/opt-in use-case writeup (or reply to the case in the Support
+console). **Deliberately on the backlog — do not resubmit without sign-off.**
+Interim: verify individual test recipients with `aws sesv2 create-email-identity`.
 
 ## 7. CloudFront + Route53 + ACM
 
@@ -321,7 +343,7 @@ Web build-time URLs in this setup:
 | S3 web origin | `foxtrot-web-826671498662` via OAC `E3VY7642M14Z6R`; bucket policy is CloudFront-only, public access fully blocked (the old S3 static-website URL is dead — intentional) |
 | EB origin | `foxtrot-api-prod.eba-npsz5ez5.us-east-1.elasticbeanstalk.com`, http-only, behaviors `/api/*`, `/socket.io/*`, `/health` (CachingDisabled + AllViewerExceptHostHeader) |
 | DNS | A/AAAA aliases apex + www → the distribution; ACM validation CNAME; SES DKIM ×3 (verified); `_dmarc` TXT `p=none` |
-| SES | domain identity `randallsnightly.com` VERIFIED; `SES_FROM_EMAIL=no-reply@randallsnightly.com` on EB; production access REQUESTED 2026-06-12 (pending AWS review — sandbox limits recipients until then) |
+| SES | domain `randallsnightly.com` + `robert.liam.walker@gmail.com` VERIFIED; `SES_FROM_EMAIL=no-reply@randallsnightly.com` on EB; instance-role `ses:SendEmail` via inline policy `foxtrot-ses-send` (added 2026-06-13 — see §6); production access **DENIED** (case 178127710500151) → sandbox-only, re-request BACKLOGGED |
 | EB env | `WEB_URL=https://randallsnightly.com` set 2026-06-12 |
 | GH Actions vars | `VITE_API_URL=https://randallsnightly.com/api`, `VITE_SOCKET_URL=https://randallsnightly.com`, `CLOUDFRONT_DISTRIBUTION_ID=E2J2AGBK1BOAMP` (deploy-web invalidates on every deploy) |
 | Match rendezvous (UDP) | Deploy bundle is **docker-compose** (EB compose mode: no managed nginx — the container publishes `80:3001` itself — and env properties arrive via the EB-generated `.env`). Ports `80:3001` + `41100:41100/udp`. EB env props `RENDEZVOUS_HOST=rdv.randallsnightly.com`, `RENDEZVOUS_UDP_PORT=41100` (HOST is what `/ready` advertises to clients; the socket binds 0.0.0.0). `rdv.randallsnightly.com` A → the single-instance EIP **directly** (CloudFront cannot proxy UDP — bypassed by design; if EB ever scales out, move the registrar to a dedicated instance or NLB-UDP). SG: UDP 41100 ingress from 0.0.0.0/0 on the EB instance SG. Registrar drops malformed/unknown packets silently (anti-reflector) — a from-outside preflight needs real `/ready` tokens; packet arrival shows in app logs as `rdv packet rejected` |
