@@ -12,6 +12,53 @@ import {
 } from "../lib/bracketService";
 import { emitTournamentUpdate } from "../lib/tournamentEvents";
 import { markPresent } from "../lib/presence";
+import { generateDoubleElim } from "@foxtrot/shared";
+
+/**
+ * Registration-time preview bracket: seed the CURRENT registrants into a
+ * double-elim bracket in memory (NOT persisted) so the in-game bracket fills
+ * and grows as people register. Unfilled slots (byes / undecided) are null.
+ * Seeds by the same ordering startTournament uses ([seed asc, createdAt asc]);
+ * no new sort. Zero registrants → []. Bracket size grows with the count
+ * (generateDoubleElim pads to the next power of 2 at or above it, min 4).
+ */
+function buildPreviewBracket(
+  entries: {
+    userId: string;
+    seed: number | null;
+    createdAt: Date;
+    dqAt: Date | null;
+    user: { id: string; username: string };
+  }[],
+  viewerId: string
+) {
+  const ordered = entries
+    .filter((e) => e.dqAt == null)
+    .sort(
+      (a, b) =>
+        (a.seed ?? Number.MAX_SAFE_INTEGER) - (b.seed ?? Number.MAX_SAFE_INTEGER) ||
+        a.createdAt.getTime() - b.createdAt.getTime()
+    );
+  if (ordered.length === 0) return [];
+  const nameById = new Map(ordered.map((e) => [e.userId, e.user.username]));
+  const bracket = generateDoubleElim(ordered.map((e) => e.userId));
+  const out = [];
+  for (const m of bracket.matches.values()) {
+    const p1 = m.p1 ?? null;
+    const p2 = m.p2 ?? null;
+    out.push({
+      matchKey: m.def.key,
+      round: m.def.round,
+      matchNumber: m.def.matchNumber,
+      player1: p1 ? { id: p1, username: nameById.get(p1) ?? "?" } : null,
+      player2: p2 ? { id: p2, username: nameById.get(p2) ?? "?" } : null,
+      winnerId: m.winnerId ?? null,
+      viewerCurrent:
+        m.winnerId == null && p1 != null && p2 != null && (p1 === viewerId || p2 === viewerId),
+    });
+  }
+  return out;
+}
 
 // Prize distribution (must sum to 100)
 export const PRIZE_SPLIT = { first: 50, second: 25, third: 10, platform: 15 };
@@ -63,6 +110,7 @@ export async function tournamentRoutes(app: FastifyInstance) {
   // GET /api/tournaments/:id — full bracket detail
   app.get("/:id", { preHandler: [requireAuth] }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const viewerId = (request.user as { id: string }).id;
     const tournament = await prisma.tournament.findUnique({
       where: { id },
       include: {
@@ -78,7 +126,22 @@ export async function tournamentRoutes(app: FastifyInstance) {
       },
     });
     if (!tournament) return reply.code(404).send({ error: "Tournament not found" });
-    return tournament;
+    // Flag the viewer's current match: undecided, both players assigned, viewer in it.
+    const matches = tournament.matches.map((m) => ({
+      ...m,
+      viewerCurrent:
+        m.winnerId == null &&
+        m.player1Id != null &&
+        m.player2Id != null &&
+        (m.player1Id === viewerId || m.player2Id === viewerId),
+    }));
+    // Before the bracket is generated (REGISTRATION), serve an in-memory preview
+    // built from the current registrants so the bracket fills as people join.
+    const previewBracket =
+      tournament.status === "REGISTRATION"
+        ? buildPreviewBracket(tournament.entries, viewerId)
+        : undefined;
+    return { ...tournament, matches, previewBracket };
   });
 
   // POST /api/tournaments/:id/register
