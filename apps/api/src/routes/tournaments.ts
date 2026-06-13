@@ -167,10 +167,12 @@ export async function tournamentRoutes(app: FastifyInstance) {
     });
     if (alreadyEntered) return reply.code(409).send({ error: "Already registered" });
 
-    // Free tournament — register directly
+    // Free tournament — register directly. Registration grants the right to
+    // play (auto-checked-in); a no-show is handled by the no-show sweep, which
+    // gives the opponent the bye. There is no separate check-in step.
     if (tournament.entryFee === 0) {
       const entry = await prisma.tournamentEntry.create({
-        data: { tournamentId: id, userId },
+        data: { tournamentId: id, userId, checkedInAt: new Date() },
         include: { user: { select: { id: true, username: true } } },
       });
       emitTournamentUpdate(id, "entry");
