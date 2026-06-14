@@ -250,7 +250,7 @@ export async function tournamentRoutes(app: FastifyInstance) {
       scheduledAt: z.string().datetime(),
       format: z.enum(["SINGLE_ELIM", "DOUBLE_ELIM"]).default("SINGLE_ELIM"),
       seriesFormat: z.enum(["BO3", "BO5"]).default("BO5"),
-      maxEntrants: z.number().int().min(4).max(256).default(64),
+      maxEntrants: z.number().int().min(4).max(16).default(16), // 16-man cap for now (keeps bracket text large + the text arena safe); raise later
       entryFee: z.number().int().min(0).default(0),
     });
 
