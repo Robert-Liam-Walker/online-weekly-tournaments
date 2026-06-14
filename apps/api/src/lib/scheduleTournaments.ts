@@ -36,12 +36,12 @@ export async function ensureNightlyTournaments(now: Date = new Date()) {
       data: {
         name,
         description:
-          "Free entry, open to all. 32-player double elimination, best of 3. Check in within 30 minutes of start.",
+          "Free entry, open to all. 16-player double elimination, best of 3. Check in within 30 minutes of start.",
         scheduledAt,
         region: region.code,
         format: "DOUBLE_ELIM",
         seriesFormat: "BO3",
-        maxEntrants: 32,
+        maxEntrants: 16,
         entryFee: 0,
         status: "REGISTRATION",
       },
