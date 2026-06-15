@@ -1,29 +1,35 @@
-// Public downloads page — the funnel's front door. Links the latest
-// published launcher installer (GitHub Releases serves the asset; the
-// /latest/download path always points at the newest version).
+// Public downloads page — the funnel's front door. There is no launcher: the
+// download is a one-time installer for the game client (Dolphin) itself. It
+// installs the client, asks for your ISO, and drops a desktop icon that boots
+// straight into Melee. Login is automatic on first boot (the game opens the
+// browser approval page) — no launcher, no separate sign-in app.
+//
+// NOTE: the installer asset lives on the public game-client repo
+// (randalls-dolphin) releases. The filename is version-pinned, so bump
+// INSTALLER_URL whenever a new installer is published.
 
 import PublicFooter from "../components/PublicFooter";
 
 const INSTALLER_URL =
-  "https://github.com/Robert-Liam-Walker/randalls-launcher/releases/latest/download/Randalls-Nightly-Tournaments-Setup-0.2.0.exe";
-const RELEASES_URL = "https://github.com/Robert-Liam-Walker/randalls-launcher/releases/latest";
+  "https://github.com/Robert-Liam-Walker/randalls-dolphin/releases/latest/download/Randalls-Nightly-Tournaments-Setup-0.3.0.exe";
+const RELEASES_URL = "https://github.com/Robert-Liam-Walker/randalls-dolphin/releases/latest";
 
 const STEPS: Array<{ title: string; body: string }> = [
   {
-    title: "Install the launcher",
-    body: "Run the installer. Windows SmartScreen may warn about an unsigned app — choose More info, then Run anyway. The launcher installs to its own folder and never touches an existing Slippi Launcher setup.",
+    title: "Download and install",
+    body: "Run the installer. Windows SmartScreen may warn about an unsigned app — choose More info, then Run anyway. During setup you pick your own NTSC 1.02 Melee ISO (we never distribute the game) and can add a desktop icon.",
   },
   {
-    title: "Sign in with Slippi and pick your ISO",
-    body: "The quick-start walks you through logging into your Slippi account and selecting your own NTSC 1.02 Melee ISO. We never distribute the game.",
+    title: "Launch from your desktop icon",
+    body: "Double-click the Randall's Nightly Tournaments icon. It boots your game client straight into Melee — there's no launcher to open first.",
   },
   {
-    title: "Create your account and link your device",
-    body: "Register here on the website, then enter the 6-character code the game shows you on the Device page. One time only — your game stays linked.",
+    title: "Approve in your browser",
+    body: "The first time you launch, the game opens your browser to the link page — sign in (or create an account) and click Approve. The game picks up the link in a few seconds. One time only; it stays linked.",
   },
   {
     title: "Play tonight at 8pm",
-    body: "Boot the game from the launcher, open Online Play, and register for tonight's free regional — EU, NA East, or NA West. 32-player double elimination, best of 3, every single night.",
+    body: "Open Online Play and register for tonight's free regional — EU, NA East, or NA West. 16-player double elimination, best of 3, every single night.",
   },
 ];
 
@@ -66,8 +72,8 @@ export default function Download() {
 
       <p className="text-gray-600 text-xs text-center mt-10">
         You must own a legally obtained copy of Super Smash Bros. Melee. Randall's Nightly
-        Tournaments is not affiliated with Nintendo or the Slippi team. Launcher and emulator
-        are open source (GPL) — sources at github.com/Robert-Liam-Walker.
+        Tournaments is not affiliated with Nintendo or the Slippi team. The game client and
+        emulator are open source (GPL) — sources at github.com/Robert-Liam-Walker.
       </p>
       </div>
       <PublicFooter />

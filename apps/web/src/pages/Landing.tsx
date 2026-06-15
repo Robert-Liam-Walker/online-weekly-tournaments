@@ -90,12 +90,12 @@ function formatLocal(date: Date): string {
 
 const HOW_IT_WORKS: Array<{ title: string; body: string }> = [
   {
-    title: "Download the launcher",
-    body: "Grab the free launcher for Windows. It sets up Slippi rollback netplay alongside your own Melee ISO.",
+    title: "Download the game",
+    body: "Grab the free installer for Windows. It sets up Slippi rollback netplay alongside your own Melee ISO and drops a desktop icon.",
   },
   {
     title: "Create an account",
-    body: "Register with your email and a username, then link your game with a one-time device code.",
+    body: "Register with your email and a username. On first launch the game opens your browser to link your account — just click Approve.",
   },
   {
     title: "Register for tonight",
@@ -141,7 +141,7 @@ export default function Landing() {
             to="/download"
             className="bg-green-600 hover:bg-green-500 text-white font-bold text-lg px-8 py-3 rounded-lg transition-colors"
           >
-            Download the launcher
+            Download the game
           </Link>
           <Link
             to="/login"

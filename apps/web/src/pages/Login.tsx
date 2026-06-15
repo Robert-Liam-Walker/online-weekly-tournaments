@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuthStore } from "../hooks/useAuth";
 
@@ -9,6 +9,12 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const setAuth = useAuthStore((s) => s.setAuth);
   const navigate = useNavigate();
+  const location = useLocation();
+  // RequireAuth stashes the page the user was trying to reach (e.g. the device
+  // link approval at /device?code=…). Return there after login so the
+  // pre-filled code survives the login bounce; default to the arena.
+  const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
+  const redirectTo = from?.pathname ? from.pathname + (from.search ?? "") : "/arena";
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -28,7 +34,7 @@ export default function Login() {
 
       const { data } = await api.post(`/auth/${tab}`, payload);
       setAuth(data.user, data.token);
-      navigate("/arena");
+      navigate(redirectTo, { replace: true });
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { error?: string } } })?.response?.data
@@ -132,7 +138,7 @@ export default function Login() {
           <p className="text-center text-sm text-gray-500 mt-4">
             New here?{" "}
             <Link to="/download" className="text-green-500 hover:text-green-400">
-              Download the launcher
+              Download the game
             </Link>{" "}
             and play tonight.
           </p>
