@@ -29,22 +29,25 @@ export async function ensureNightlyTournaments(now: Date = new Date()) {
     if (existing) continue;
 
     const label = regionDateLabel(scheduledAt, region.tz);
+    // Event name is region + "Bracket" (NA labels hyphenated: "NA East" -> "NA-East").
+    // Date is intentionally omitted from the name — the UI shows date/time separately.
+    const name = `${region.label.replace(" ", "-")} Bracket`;
     await prisma.tournament.create({
       data: {
-        name: `Randalls Nightly — ${region.label} — ${label}`,
+        name,
         description:
-          "Free entry, open to all. 32-player double elimination, best of 3. Check in within 30 minutes of start.",
+          "Free entry, open to all. 16-player double elimination, best of 3. Check in within 30 minutes of start.",
         scheduledAt,
         region: region.code,
         format: "DOUBLE_ELIM",
         seriesFormat: "BO3",
-        maxEntrants: 32,
+        maxEntrants: 16,
         entryFee: 0,
         status: "REGISTRATION",
       },
     });
     console.log(
-      `[scheduler] Created Randalls Nightly — ${region.label} — ${label} (${scheduledAt.toISOString()}).`
+      `[scheduler] Created ${name} for ${label} (${scheduledAt.toISOString()}).`
     );
   }
 }
