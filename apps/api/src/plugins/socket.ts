@@ -1,6 +1,8 @@
+import type { FastifyInstance } from "fastify";
 import { Server, Socket } from "socket.io";
 import { prisma } from "../lib/prisma";
 import { addToArena, removeFromArena } from "../lib/redis";
+import { authenticateSocketToken } from "../lib/socketAuth";
 
 // Held here so libs/routes can emit without importing src/index.ts (cycle).
 let ioInstance: Server | null = null;
@@ -10,19 +12,16 @@ export function getIO(): Server | null {
   return ioInstance;
 }
 
-export function registerSocketHandlers(io: Server) {
+export function registerSocketHandlers(app: FastifyInstance, io: Server) {
   ioInstance = io;
-  io.use(async (socket, next) => {
-    // Validate JWT from handshake auth
+  io.use((socket, next) => {
+    // Authenticate the handshake JWT with the SAME @fastify/jwt secret the HTTP
+    // routes use — signature + expiry are cryptographically verified (a forged
+    // or tampered token throws and the connection is rejected).
     const token = socket.handshake.auth?.token as string | undefined;
     if (!token) return next(new Error("Missing token"));
-
-    // Minimal JWT decode — in production use jose or jsonwebtoken
     try {
-      const payload = JSON.parse(
-        Buffer.from(token.split(".")[1], "base64url").toString()
-      );
-      socket.data.userId = payload.id as string;
+      socket.data.userId = authenticateSocketToken(app, token);
       next();
     } catch {
       next(new Error("Invalid token"));
