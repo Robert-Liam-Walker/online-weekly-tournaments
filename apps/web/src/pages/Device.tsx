@@ -61,7 +61,7 @@ export default function Device() {
         // Manual fallback: no code in the URL, player types it.
         <>
           <p className="text-gray-400 text-sm mb-6">
-            The Randall's Nightly Tournaments client shows a 6-character code when it needs to link.
+            The Nightly Tournaments client shows a 6-character code when it needs to link.
             Enter it here to connect the game to your account.
           </p>
           <form

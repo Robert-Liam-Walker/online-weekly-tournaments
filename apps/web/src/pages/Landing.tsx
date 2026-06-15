@@ -129,7 +129,7 @@ export default function Landing() {
           <RandallIcon size={96} />
         </div>
         <h1 className="text-4xl sm:text-5xl font-bold mb-4">
-          Randall's Nightly Tournaments
+          Nightly Tournaments
         </h1>
         <p className="text-gray-400 text-lg max-w-2xl mx-auto mb-8">
           Free Super Smash Bros. Melee tournaments every single night, powered by
@@ -194,7 +194,7 @@ export default function Landing() {
         </div>
         <p className="text-gray-600 text-xs text-center mt-8">
           You must own a legally obtained copy of Super Smash Bros. Melee.
-          Randall's Nightly Tournaments is not affiliated with Nintendo or the
+          Nightly Tournaments is not affiliated with Nintendo or the
           Slippi team.
         </p>
       </section>

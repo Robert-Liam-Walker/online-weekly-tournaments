@@ -20,7 +20,7 @@ export default function Terms() {
 
         <Section title="What this service is">
           <p>
-            Randall's Nightly Tournaments is a free, hobby-run platform for
+            Nightly Tournaments is a free, hobby-run platform for
             nightly Super Smash Bros. Melee tournaments played over Slippi
             rollback netplay. There is no entry fee, no prize money, and no
             paid tier at this time. By creating an account or playing in a
@@ -56,8 +56,8 @@ export default function Terms() {
         <Section title="The game itself">
           <p>
             You must own a legally obtained copy of Super Smash Bros. Melee.
-            We do not distribute the game or any Nintendo property. Randall's
-            Nightly Tournaments is not affiliated with, endorsed by, or
+            We do not distribute the game or any Nintendo property. Nightly
+            Tournaments is not affiliated with, endorsed by, or
             connected to Nintendo or the Slippi team.
           </p>
         </Section>

@@ -4,52 +4,66 @@ import { emitTournamentUpdate } from "./tournamentEvents";
 import { REGIONS, nextNightAt, regionDateLabel } from "./regions";
 
 /**
- * Randall's Nightly Tournaments: every night, ONE free event per region
- * (EU / NA East / NA West) at 20:00 region-local — DST-correct via
- * lib/regions.ts. Events are stored as absolute UTC instants; clients
- * render region-local + viewer-local times.
+ * Randall's Nightly Tournaments: every night, ONE free United States event
+ * at 20:00 US-Eastern — DST-correct via lib/regions.ts. The series reuses
+ * the NA_EAST region/timezone machinery (America/New_York). Events are
+ * stored as absolute UTC instants; clients render series-local + viewer-
+ * local times.
  *
- * Idempotency: the scheduler computes each region's next 20:00-local
- * instant deterministically, so "(region, scheduledAt) already exists"
- * is an exact-match check — re-runs and multi-instance races can only
- * ever find-or-create the same row. (No unique constraint needed; the
- * worst race outcome is a transient duplicate that the exact-match check
- * prevents in practice since the cron is single-instance today.)
+ * Single-series scope: the platform previously ran three regional brackets
+ * (EU / NA East / NA West). It now runs a single US series. The REGIONS map
+ * is intentionally left intact — TournamentDetail and other code import its
+ * display helpers (e.g. regionDateLabel, region labels) for events that
+ * still carry the NA_EAST region code.
+ *
+ * Idempotency: the scheduler computes the series' next 20:00-local instant
+ * deterministically, so "(region, scheduledAt) already exists" is an
+ * exact-match check — re-runs and multi-instance races can only ever
+ * find-or-create the same row. (No unique constraint needed; the worst race
+ * outcome is a transient duplicate that the exact-match check prevents in
+ * practice since the cron is single-instance today.)
  *
  * Release scope is FREE-ONLY (Stripe dormant): the nightly scheduler
  * creates no paid events at all. Paid creation remains possible only via
  * the admin route behind PAID_EVENTS_ENABLED.
  */
-export async function ensureNightlyTournaments(now: Date = new Date()) {
-  for (const region of REGIONS) {
-    const scheduledAt = nextNightAt(region, now);
-    const existing = await prisma.tournament.findFirst({
-      where: { region: region.code, scheduledAt },
-    });
-    if (existing) continue;
 
-    const label = regionDateLabel(scheduledAt, region.tz);
-    // Event name is region + "Bracket" (NA labels hyphenated: "NA East" -> "NA-East").
-    // Date is intentionally omitted from the name — the UI shows date/time separately.
-    const name = `${region.label.replace(" ", "-")} Bracket`;
-    await prisma.tournament.create({
-      data: {
-        name,
-        description:
-          "Free entry, open to all. 16-player double elimination, best of 3. Check in within 30 minutes of start.",
-        scheduledAt,
-        region: region.code,
-        format: "DOUBLE_ELIM",
-        seriesFormat: "BO3",
-        maxEntrants: 16,
-        entryFee: 0,
-        status: "REGISTRATION",
-      },
-    });
-    console.log(
-      `[scheduler] Created ${name} for ${label} (${scheduledAt.toISOString()}).`
-    );
-  }
+/**
+ * The single nightly series runs on US-Eastern. We reuse the existing
+ * NA_EAST region entry (America/New_York) so all region display helpers and
+ * the stored Region enum value keep working unchanged.
+ */
+const SERIES_REGION = REGIONS.find((r) => r.code === "NA_EAST")!;
+
+/** Name shown for the nightly event. Date/time are shown separately by the UI. */
+const SERIES_NAME = "Nightly Tournament";
+
+export async function ensureNightlyTournaments(now: Date = new Date()) {
+  const region = SERIES_REGION;
+  const scheduledAt = nextNightAt(region, now);
+  const existing = await prisma.tournament.findFirst({
+    where: { region: region.code, scheduledAt },
+  });
+  if (existing) return;
+
+  const label = regionDateLabel(scheduledAt, region.tz);
+  await prisma.tournament.create({
+    data: {
+      name: SERIES_NAME,
+      description:
+        "Free entry, open to all. 16-player double elimination, best of 3. Check in within 30 minutes of start.",
+      scheduledAt,
+      region: region.code,
+      format: "DOUBLE_ELIM",
+      seriesFormat: "BO3",
+      maxEntrants: 16,
+      entryFee: 0,
+      status: "REGISTRATION",
+    },
+  });
+  console.log(
+    `[scheduler] Created ${SERIES_NAME} for ${label} (${scheduledAt.toISOString()}).`
+  );
 }
 
 /** Minutes past the scheduled start before an unstartable event cancels. */
@@ -116,7 +130,7 @@ export async function sweepNoShowTournaments() {
   }
 }
 
-/** Boot + per-minute loop: ensure tonight's regionals exist, start due
+/** Boot + per-minute loop: ensure tonight's US series exists, start due
  *  tournaments (close check-in, generate brackets), auto-DQ no-shows. */
 export function startTournamentScheduler() {
   ensureNightlyTournaments().catch(console.error);
@@ -150,6 +164,6 @@ export function startTournamentScheduler() {
   }, 60_000);
 
   console.log(
-    "[scheduler] Nightly scheduler started (3 regional events/night at 20:00 local; due-start + no-show sweep every minute)."
+    "[scheduler] Nightly scheduler started (1 US series/night at 20:00 US-Eastern; due-start + no-show sweep every minute)."
   );
 }

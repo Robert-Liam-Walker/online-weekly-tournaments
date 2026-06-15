@@ -363,7 +363,7 @@ export default function TournamentDetail() {
         )}
         {t.description && <p className="text-gray-400 text-sm mt-1">{t.description}</p>}
         <p className="text-gray-500 text-xs mt-2">
-          Playable from inside Melee: the Randall's client → Online Play → Find Tournament
+          Playable from inside Melee: the Nightly Tournaments client → Online Play → Find Tournament
         </p>
       </div>
 

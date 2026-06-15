@@ -21,7 +21,7 @@ const STEPS: Array<{ title: string; body: string }> = [
   },
   {
     title: "Launch from your desktop icon",
-    body: "Double-click the Randall's Nightly Tournaments icon. It boots your game client straight into Melee — there's no launcher to open first.",
+    body: "Double-click the Nightly Tournaments icon. It boots your game client straight into Melee — there's no launcher to open first.",
   },
   {
     title: "Approve in your browser",
@@ -38,8 +38,8 @@ export default function Download() {
     <div className="min-h-screen bg-gray-950">
       <div className="max-w-3xl mx-auto px-6 py-12">
       <div className="text-center mb-10">
-        <img src="/favicon.png" alt="Randall" className="w-24 h-24 mx-auto mb-4" />
-        <h1 className="text-4xl font-bold text-white mb-3">Randall's Nightly Tournaments</h1>
+        <img src="/favicon.svg" alt="Nightly Tournaments" className="w-24 h-24 mx-auto mb-4" />
+        <h1 className="text-4xl font-bold text-white mb-3">Nightly Tournaments</h1>
         <p className="text-gray-400 text-lg mb-6">
           Free Melee brackets every night — EU, NA East, and NA West at 8pm local. Powered by
           Slippi rollback netplay.
@@ -71,7 +71,7 @@ export default function Download() {
       </div>
 
       <p className="text-gray-600 text-xs text-center mt-10">
-        You must own a legally obtained copy of Super Smash Bros. Melee. Randall's Nightly
+        You must own a legally obtained copy of Super Smash Bros. Melee. Nightly
         Tournaments is not affiliated with Nintendo or the Slippi team. The game client and
         emulator are open source (GPL) — sources at github.com/Robert-Liam-Walker.
       </p>
