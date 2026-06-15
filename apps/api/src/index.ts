@@ -167,7 +167,7 @@ async function main() {
   await app.register(chatRoutes, { prefix: "/api/chat" });
   await app.register(launcherRoutes, { prefix: "/api/launcher" });
 
-  registerSocketHandlers(io);
+  registerSocketHandlers(app, io);
   startTournamentScheduler();
 
   // Match-rendezvous UDP registrar — opt-in: only binds when the port is
