@@ -1,4 +1,9 @@
 import { FastifyInstance } from "fastify";
+import {
+  getChannelManifest,
+  releaseStoreConfigured,
+  type Channel,
+} from "../lib/releaseChannels";
 
 // Public manifest the FoxTrot launcher polls to discover the current Dolphin
 // builds, game-file bundle, and minimum supported launcher version.
@@ -18,7 +23,24 @@ function env(name: string): string | undefined {
 }
 
 export async function launcherRoutes(app: FastifyInstance) {
-  app.get("/manifest", async (_request, reply) => {
+  app.get("/manifest", async (request, reply) => {
+    reply.header("Cache-Control", "public, max-age=60");
+
+    // Candidate/stable channels (S3-backed, immutable snapshots). Public
+    // launchers send nothing -> stable; our candidate fresh-install E2E sets
+    // FOXTROT_CHANNEL so the launcher requests ?channel=candidate. Falls
+    // through to the env-var manifest below when the S3 release store isn't
+    // configured or the channel has no release pointer yet (keeps dev and the
+    // current prod behavior working).
+    const channel: Channel =
+      (request.query as { channel?: string }).channel === "candidate"
+        ? "candidate"
+        : "stable";
+    if (releaseStoreConfigured()) {
+      const fromChannel = await getChannelManifest(channel);
+      if (fromChannel) return fromChannel;
+    }
+
     const netplayVersion = env("FOXTROT_DOLPHIN_VERSION");
     const netplayWin32 = env("FOXTROT_DOLPHIN_WIN_URL");
     const playbackVersion = env("FOXTROT_DOLPHIN_PLAYBACK_VERSION");
@@ -37,7 +59,6 @@ export async function launcherRoutes(app: FastifyInstance) {
         ? { version: playbackVersion, win32: playbackWin32 }
         : null;
 
-    reply.header("Cache-Control", "public, max-age=60");
     return {
       manifestVersion: 1,
       dolphin: netplay || playback ? { netplay, playback } : null,
