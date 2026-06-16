@@ -13,6 +13,7 @@ import {
 import { emitTournamentUpdate } from "../lib/tournamentEvents";
 import { markPresent } from "../lib/presence";
 import { generateDoubleElim } from "@foxtrot/shared";
+import { entrantName } from "../lib/displayName";
 
 /**
  * Registration-time preview bracket: seed the CURRENT registrants into a
@@ -28,7 +29,7 @@ function buildPreviewBracket(
     seed: number | null;
     createdAt: Date;
     dqAt: Date | null;
-    user: { id: string; username: string };
+    user: { id: string; username: string; displayName: string | null };
   }[],
   viewerId: string | null
 ) {
@@ -40,7 +41,16 @@ function buildPreviewBracket(
         a.createdAt.getTime() - b.createdAt.getTime()
     );
   if (ordered.length === 0) return [];
-  const nameById = new Map(ordered.map((e) => [e.userId, e.user.username]));
+  // GUEST numbers follow REGISTRATION order (createdAt), so they stay stable even
+  // after seeding reorders the bracket. Custom names override.
+  const registrationOrder = new Map(
+    [...ordered]
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .map((e, i) => [e.userId, i + 1])
+  );
+  const nameById = new Map(
+    ordered.map((e) => [e.userId, entrantName(e.user.displayName, registrationOrder.get(e.userId) ?? 1)])
+  );
   const bracket = generateDoubleElim(ordered.map((e) => e.userId));
   const out = [];
   for (const m of bracket.matches.values()) {
@@ -99,12 +109,38 @@ export async function tournamentRoutes(app: FastifyInstance) {
       where: { userId: viewerId, tournamentId: { in: tournaments.map((t) => t.id) } },
     });
     const byTournament = new Map(myEntries.map((e) => [e.tournamentId, e]));
-    return tournaments.map((t) => ({
-      ...t,
-      viewerRegistered: byTournament.has(t.id),
-      viewerCheckedIn: byTournament.get(t.id)?.checkedInAt != null,
-      viewerPlacement: byTournament.get(t.id)?.placement ?? null,
-    }));
+    // The viewer's own in-game identity, echoed on every row so the Dolphin
+    // client picks up a web name change on its next poll (no extra request).
+    // Custom name if set; otherwise GUEST + their registration order in that
+    // tournament (so a guest only has a name where they're registered).
+    const me = await prisma.user.findUnique({
+      where: { id: viewerId },
+      select: { displayName: true },
+    });
+    const orderByTournament = new Map<string, number>();
+    await Promise.all(
+      myEntries.map(async (e) => {
+        const before = await prisma.tournamentEntry.count({
+          where: { tournamentId: e.tournamentId, createdAt: { lt: e.createdAt } },
+        });
+        orderByTournament.set(e.tournamentId, before + 1);
+      })
+    );
+    return tournaments.map((t) => {
+      const registered = byTournament.has(t.id);
+      const viewerDisplayName = me?.displayName
+        ? me.displayName
+        : registered
+          ? entrantName(null, orderByTournament.get(t.id) ?? 1)
+          : null;
+      return {
+        ...t,
+        viewerRegistered: registered,
+        viewerCheckedIn: byTournament.get(t.id)?.checkedInAt != null,
+        viewerPlacement: byTournament.get(t.id)?.placement ?? null,
+        viewerDisplayName,
+      };
+    });
   });
 
   // GET /api/tournaments/leaderboard — public all-time champions board.
@@ -120,9 +156,9 @@ export async function tournamentRoutes(app: FastifyInstance) {
 
     const users = await prisma.user.findMany({
       where: { id: { in: grouped.map((g) => g.userId) } },
-      select: { id: true, username: true },
+      select: { id: true, username: true, displayName: true },
     });
-    const nameById = new Map(users.map((u) => [u.id, u.username]));
+    const nameById = new Map(users.map((u) => [u.id, u.displayName ?? u.username]));
 
     const leaders = grouped
       .map((g) => ({
@@ -153,7 +189,7 @@ export async function tournamentRoutes(app: FastifyInstance) {
       include: {
         entries: {
           include: {
-            user: { select: { id: true, username: true } },
+            user: { select: { id: true, username: true, displayName: true } },
           },
         },
         matches: {
@@ -172,13 +208,24 @@ export async function tournamentRoutes(app: FastifyInstance) {
         m.player2Id != null &&
         (m.player1Id === viewerId || m.player2Id === viewerId),
     }));
+    // Resolve each entrant's shown name: their custom name, else GUEST + their
+    // registration order (createdAt). The game reads entry.entrantName.
+    const registrationOrder = new Map(
+      [...tournament.entries]
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+        .map((e, i) => [e.userId, i + 1])
+    );
+    const entries = tournament.entries.map((e) => ({
+      ...e,
+      entrantName: entrantName(e.user.displayName, registrationOrder.get(e.userId) ?? 1),
+    }));
     // Before the bracket is generated (REGISTRATION), serve an in-memory preview
     // built from the current registrants so the bracket fills as people join.
     const previewBracket =
       tournament.status === "REGISTRATION"
         ? buildPreviewBracket(tournament.entries, viewerId)
         : undefined;
-    return { ...tournament, matches, previewBracket };
+    return { ...tournament, entries, matches, previewBracket };
   });
 
   // POST /api/tournaments/:id/register

@@ -10,6 +10,11 @@ datasource db {
 model User {
   id                 String             @id @default(cuid())
   username           String             @unique
+  // In-game identity (4 letters + 2 digits, e.g. ABCD12). Random by default,
+  // optionally changed on the web. Shown in-game and in brackets; the Dolphin
+  // client re-fetches it so a web change propagates. Nullable for a clean
+  // additive migration; always populated in code (display falls back to username).
+  displayName        String?            @unique
   email              String             @unique
   passwordHash       String
   role               UserRole           @default(USER)

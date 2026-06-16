@@ -5,6 +5,7 @@ import { z } from "zod";
 import { USERNAME_REGEX } from "@foxtrot/shared";
 import { prisma } from "../lib/prisma";
 import { sendPasswordResetEmail } from "../lib/email";
+import { DISPLAY_NAME_REGEX } from "../lib/displayName";
 
 const registerSchema = z.object({
   username: z
@@ -149,9 +150,11 @@ export async function authRoutes(app: FastifyInstance) {
     // Admin bootstrap: the operator email (ADMIN_EMAIL env) registers
     // straight into the ADMIN role — production has no DB shell access.
     const role = process.env.ADMIN_EMAIL && email === process.env.ADMIN_EMAIL ? "ADMIN" : "USER";
+    // No custom in-game name yet — the player shows as GUEST + their registration
+    // order in each tournament until they set one here on the web.
     const user = await prisma.user.create({
       data: { username, email, passwordHash, role },
-      select: { id: true, username: true, email: true, subscriptionStatus: true },
+      select: { id: true, username: true, displayName: true, email: true, subscriptionStatus: true },
     });
 
     const token = app.jwt.sign({ id: user.id }, { expiresIn: "7d" });
@@ -255,6 +258,7 @@ export async function authRoutes(app: FastifyInstance) {
         select: {
           id: true,
           username: true,
+          displayName: true,
           email: true,
           role: true,
           subscriptionStatus: true,
@@ -262,6 +266,32 @@ export async function authRoutes(app: FastifyInstance) {
           createdAt: true,
         },
       });
+    }
+  );
+
+  // Change the in-game identity (the ABCD12 name shown in-game and in brackets).
+  // Login required; format-validated and unique. The Dolphin client re-fetches
+  // it on its poll, so the change shows up in-game within a few seconds.
+  app.post(
+    "/display-name",
+    { preHandler: [(req, rep) => req.jwtVerify()] },
+    async (request, reply) => {
+      const { id } = request.user as { id: string };
+      const raw = (request.body as { displayName?: string } | undefined)?.displayName;
+      const displayName = typeof raw === "string" ? raw.trim().toUpperCase() : "";
+      if (!DISPLAY_NAME_REGEX.test(displayName)) {
+        return reply.code(400).send({ error: "Name must be 5 letters then 2 numbers (e.g. ABCDE12)" });
+      }
+      const taken = await prisma.user.findUnique({ where: { displayName } });
+      if (taken && taken.id !== id) {
+        return reply.code(409).send({ error: "That name is taken" });
+      }
+      const user = await prisma.user.update({
+        where: { id },
+        data: { displayName },
+        select: { id: true, username: true, displayName: true },
+      });
+      return { user };
     }
   );
 }
