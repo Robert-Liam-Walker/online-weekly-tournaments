@@ -7,6 +7,7 @@ import {
   reportResult,
 } from "@foxtrot/shared";
 import { prisma } from "./prisma";
+import { entrantName } from "./displayName";
 import { isPresent } from "./presence";
 import { withTournamentLock } from "./tournamentLock";
 import {
@@ -417,18 +418,28 @@ export async function getReadyTournamentMatches(tournamentId: string, viewerId?:
   const ready = getReadyMatches(bracket);
 
   const playerIds = [...new Set(ready.flatMap((m) => [m.p1!, m.p2!]))];
-  const [users, rows] = await Promise.all([
+  const [users, rows, entries] = await Promise.all([
     prisma.user.findMany({
       where: { id: { in: playerIds } },
-      select: { id: true, username: true },
+      select: { id: true, username: true, displayName: true },
     }),
     prisma.tournamentMatch.findMany({
       where: { tournamentId, matchKey: { in: ready.map((m) => m.def.key) } },
       select: { matchKey: true, readyAt: true },
     }),
+    prisma.tournamentEntry.findMany({
+      where: { tournamentId },
+      select: { userId: true },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
   const byId = new Map(users.map((u) => [u.id, u]));
   const readyAtByKey = new Map(rows.map((r) => [r.matchKey, r.readyAt]));
+  // Resolved in-game name (custom or GUEST+order) so the opponent shows the
+  // same name in-match as in the bracket.
+  const orderByUser = new Map(entries.map((e, i) => [e.userId, i + 1]));
+  const resolveName = (uid: string) =>
+    entrantName(byId.get(uid)?.displayName ?? null, orderByUser.get(uid) ?? 1);
 
   const config = rendezvousConfig();
   return Promise.all(
@@ -449,8 +460,8 @@ export async function getReadyTournamentMatches(tournamentId: string, viewerId?:
         round: m.def.round,
         matchNumber: m.def.matchNumber,
         readyAt: readyAtByKey.get(m.def.key) ?? null,
-        player1: byId.get(m.p1!) ?? { id: m.p1!, username: "unknown" },
-        player2: byId.get(m.p2!) ?? { id: m.p2!, username: "unknown" },
+        player1: { id: m.p1!, username: byId.get(m.p1!)?.username ?? "unknown", name: resolveName(m.p1!) },
+        player2: { id: m.p2!, username: byId.get(m.p2!)?.username ?? "unknown", name: resolveName(m.p2!) },
         ...(rendezvous ? { rendezvous } : {}),
       };
     })
