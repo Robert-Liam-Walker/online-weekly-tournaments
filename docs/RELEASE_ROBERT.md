@@ -28,8 +28,8 @@ Instant, no rebuild. (The previous id is printed every time you promote — keep
 ## Test a candidate (fresh install)
 Point candidate at the build (`… promote --channel candidate --release <id>`),
 then launch the **installed** app on the candidate channel:
-- **PowerShell:** `$env:FOXTROT_CHANNEL='candidate'; & "$env:LOCALAPPDATA\Programs\foxtrot-launcher\Randall's Nightly Tournaments.exe"`
-- **cmd:** `set FOXTROT_CHANNEL=candidate && "%LOCALAPPDATA%\Programs\foxtrot-launcher\Randall's Nightly Tournaments.exe"`
+- **PowerShell:** `$env:FOXTROT_CHANNEL='candidate'; & "$env:LOCALAPPDATA\Programs\foxtrot-launcher\Nightly Tournament Service.exe"`
+- **cmd:** `set FOXTROT_CHANNEL=candidate && "%LOCALAPPDATA%\Programs\foxtrot-launcher\Nightly Tournament Service.exe"`
 
 It downloads the candidate Dolphin + gamefiles; play a full ranked Bo3 to confirm.
 

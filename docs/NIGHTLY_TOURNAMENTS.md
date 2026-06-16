@@ -1,4 +1,4 @@
-# Randall's Nightly Tournaments
+# Nightly Tournament Service
 
 Product plan from Robert's notes (2026-06-11). Supersedes the "weekly
 Saturday events" cadence as the flagship product; the existing tournament
@@ -18,7 +18,7 @@ registration, playing — happens inside the game. "It's all in the website"
 as the system of record and the pretty bracket/results view; Slippi/Dolphin
 is just how you play. The Slippi-side logic stays as thin as possible.
 
-**Name:** Randall's Nightly Tournaments (Randall: the Pokémon Stadium cloud
+**Name:** Nightly Tournament Service (Randall: the Pokémon Stadium cloud
 — Melee-native, memorable).
 
 **Domain:** randallsnightly.com (registered 2026-06-11).
@@ -67,7 +67,7 @@ only. Original design kept below for when paid lands:
 
 ### Ideal user flow (canonical, from the notes)
 
-1. Hears about Randall's Nightly Tournaments on Reddit → visits website.
+1. Hears about Nightly Tournament Service on Reddit → visits website.
 2. Downloads page → installs (FoxTrot Launcher). Optionally buys tokens.
 3. Boots the game: token balance visible top-right. Picks region → picks
    series (free / small / large) → presses A to register. Done.

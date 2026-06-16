@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Tournament } from "../types";
 import { api } from "../lib/api";
 import { getSocket } from "../lib/socket";
+import { useAuthStore } from "../hooks/useAuth";
 import {
   REGIONS,
   REGION_ORDER,
@@ -262,7 +263,18 @@ function SuccessBanner() {
 
 export default function Tournaments() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
   const [registeringId, setRegisteringId] = useState<string | null>(null);
+
+  // Logged-out visitors can browse + view brackets; registering needs an account.
+  const handleRegister = (t: Tournament) => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+    register.mutate(t);
+  };
 
   const { data: tournaments = [], isLoading } = useQuery<Tournament[]>({
     queryKey: ["tournaments"],
@@ -328,7 +340,7 @@ export default function Tournaments() {
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-3xl font-bold text-white mb-1">Nightly Tournaments</h1>
+      <h1 className="text-3xl font-bold text-white mb-1">Nightly Tournament Service</h1>
       <p className="text-gray-400 mb-6">
         A free 32-player bracket in every region, every night at 8 PM local.
       </p>
@@ -347,7 +359,7 @@ export default function Tournaments() {
                 key={t.id}
                 t={t}
                 region={region}
-                onRegister={(t) => register.mutate(t)}
+                onRegister={handleRegister}
                 registering={registeringId === t.id}
               />
             ))}
@@ -366,7 +378,7 @@ export default function Tournaments() {
               <TournamentCard
                 key={t.id}
                 t={t}
-                onRegister={(t) => register.mutate(t)}
+                onRegister={handleRegister}
                 registering={registeringId === t.id}
               />
             ))}

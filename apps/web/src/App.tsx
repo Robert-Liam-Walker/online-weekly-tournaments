@@ -15,6 +15,7 @@ import Admin from "./pages/Admin";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import Landing from "./pages/Landing";
+import Leaderboard from "./pages/Leaderboard";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import RequireAuth from "./components/RequireAuth";
@@ -40,9 +41,10 @@ function Nav() {
   return (
     <nav className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center gap-2">
       <RandallIcon size={22} />
-      <span className="text-white font-bold text-lg mr-4 ml-1.5">Nightly Tournaments</span>
+      <span className="text-white font-bold text-lg mr-4 ml-1.5">Nightly Tournament Service</span>
       <NavLink to="/arena" className={linkClass}>Arena</NavLink>
       <NavLink to="/tournaments" className={linkClass}>Tournaments</NavLink>
+      <NavLink to="/leaderboard" className={linkClass}>Leaderboard</NavLink>
       <NavLink to="/download" className={linkClass}>Download</NavLink>
       <NavLink to="/friends" className={linkClass}>Friends</NavLink>
       <NavLink to="/feed" className={linkClass}>Feed</NavLink>
@@ -107,6 +109,12 @@ export default function App() {
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/login" element={<Login />} />
           <Route path="/download" element={<Download />} />
+          {/* Public (no auth): leaderboard + tournament browsing + bracket view.
+              Logged-out visitors see the standard nav; auth-only actions
+              (register/check-in) prompt sign-in. */}
+          <Route path="/leaderboard" element={<Leaderboard />} />
+          <Route path="/tournaments" element={<Layout><Tournaments /></Layout>} />
+          <Route path="/tournaments/:id" element={<Layout><TournamentDetail /></Layout>} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route
@@ -117,8 +125,6 @@ export default function App() {
                   <Routes>
                     <Route path="/" element={<Arena />} />
                     <Route path="/arena" element={<Arena />} />
-                    <Route path="/tournaments" element={<Tournaments />} />
-                    <Route path="/tournaments/:id" element={<TournamentDetail />} />
                     <Route path="/device" element={<Device />} />
                     <Route path="/friends" element={<Friends />} />
                     <Route path="/feed" element={<Feed />} />

@@ -14,8 +14,11 @@ const registerSchema = z.object({
   password: z.string().min(8),
 });
 
+// `email` is accepted as an identifier: it may be an email OR a username, so
+// it is intentionally NOT constrained to email format. (Key name kept for
+// client compatibility — the web form and game client both post `email`.)
 const loginSchema = z.object({
-  email: z.string().email(),
+  email: z.string().min(1),
   password: z.string(),
 });
 
@@ -161,8 +164,16 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: body.error.flatten() });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: body.data.email },
+    // Identifier may be an email or a username (username match is
+    // case-insensitive, mirroring registration's uniqueness rule).
+    const identifier = body.data.email.trim();
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: identifier },
+          { username: { equals: identifier, mode: "insensitive" } },
+        ],
+      },
     });
     if (!user) {
       return reply.code(401).send({ error: "Invalid credentials" });

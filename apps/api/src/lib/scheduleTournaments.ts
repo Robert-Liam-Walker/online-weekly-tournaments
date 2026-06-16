@@ -4,7 +4,7 @@ import { emitTournamentUpdate } from "./tournamentEvents";
 import { REGIONS, nextNightAt, regionDateLabel } from "./regions";
 
 /**
- * Randall's Nightly Tournaments: every night, ONE free United States event
+ * Nightly Tournament Service: every night, ONE free United States event
  * at 20:00 US-Eastern — DST-correct via lib/regions.ts. The series reuses
  * the NA_EAST region/timezone machinery (America/New_York). Events are
  * stored as absolute UTC instants; clients render series-local + viewer-

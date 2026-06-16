@@ -48,7 +48,7 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <h1 className="text-4xl font-bold text-white text-center mb-2">Nightly Tournaments</h1>
+        <h1 className="text-4xl font-bold text-white text-center mb-2">Nightly Tournament Service</h1>
         <p className="text-gray-400 text-center mb-8">Competitive Slippi Platform</p>
 
         <div className="bg-gray-900 rounded-xl p-8">
@@ -88,13 +88,19 @@ export default function Login() {
             )}
 
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Email</label>
+              <label className="block text-sm text-gray-400 mb-1">
+                {tab === "login" ? "Username or email" : "Email"}
+              </label>
               <input
                 name="email"
-                type="email"
+                // Login accepts a username OR email, so it must be a plain text
+                // field (type="email" would reject a bare username in the
+                // browser before the form ever submits). Register still
+                // collects a real email.
+                type={tab === "login" ? "text" : "email"}
                 required
                 className="w-full bg-gray-800 text-white rounded-lg px-4 py-2.5 border border-gray-700 focus:border-blue-500 focus:outline-none"
-                placeholder="you@example.com"
+                placeholder={tab === "login" ? "admin or you@example.com" : "you@example.com"}
               />
             </div>
 

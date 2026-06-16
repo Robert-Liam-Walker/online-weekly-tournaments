@@ -20,7 +20,7 @@ export default function Terms() {
 
         <Section title="What this service is">
           <p>
-            Nightly Tournaments is a free, hobby-run platform for
+            Nightly Tournament Service is a free, hobby-run platform for
             nightly Super Smash Bros. Melee tournaments played over Slippi
             rollback netplay. There is no entry fee, no prize money, and no
             paid tier at this time. By creating an account or playing in a

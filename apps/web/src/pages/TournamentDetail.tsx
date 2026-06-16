@@ -363,11 +363,20 @@ export default function TournamentDetail() {
         )}
         {t.description && <p className="text-gray-400 text-sm mt-1">{t.description}</p>}
         <p className="text-gray-500 text-xs mt-2">
-          Playable from inside Melee: the Nightly Tournaments client → Online Play → Find Tournament
+          Playable from inside Melee: the Nightly Tournament Service client → Online Play → Find Tournament
         </p>
       </div>
 
-      {t.status === "REGISTRATION" && (
+      {t.status === "REGISTRATION" && !user && (
+        <Link
+          to="/login"
+          className="inline-block bg-green-700 hover:bg-green-600 text-white text-sm font-medium px-4 py-2 rounded-lg"
+        >
+          Log in to register
+        </Link>
+      )}
+
+      {t.status === "REGISTRATION" && user && (
         <div className="flex items-center gap-3 flex-wrap">
           {!myEntry ? (
             t.entryFee === 0 ? (

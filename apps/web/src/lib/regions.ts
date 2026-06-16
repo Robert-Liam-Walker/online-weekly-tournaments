@@ -1,4 +1,4 @@
-// Region helper for Randall's Nightly Tournaments.
+// Region helper for Nightly Tournament Service.
 //
 // The API is gaining a `region` field on tournaments ("EU" | "NA_EAST" |
 // "NA_WEST"); older rows have no region at all. Always run values through

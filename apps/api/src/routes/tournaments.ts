@@ -30,7 +30,7 @@ function buildPreviewBracket(
     dqAt: Date | null;
     user: { id: string; username: string };
   }[],
-  viewerId: string
+  viewerId: string | null
 ) {
   const ordered = entries
     .filter((e) => e.dqAt == null)
@@ -107,10 +107,47 @@ export async function tournamentRoutes(app: FastifyInstance) {
     }));
   });
 
-  // GET /api/tournaments/:id — full bracket detail
-  app.get("/:id", { preHandler: [requireAuth] }, async (request, reply) => {
+  // GET /api/tournaments/leaderboard — public all-time champions board.
+  // Counts tournament wins (placement === 1) from COMPLETED events per user,
+  // descending. (Static route; registered before "/:id" for clarity.)
+  app.get("/leaderboard", async () => {
+    const grouped = await prisma.tournamentEntry.groupBy({
+      by: ["userId"],
+      where: { placement: 1, tournament: { status: "COMPLETED" } },
+      _count: { userId: true },
+    });
+    if (grouped.length === 0) return { leaders: [] };
+
+    const users = await prisma.user.findMany({
+      where: { id: { in: grouped.map((g) => g.userId) } },
+      select: { id: true, username: true },
+    });
+    const nameById = new Map(users.map((u) => [u.id, u.username]));
+
+    const leaders = grouped
+      .map((g) => ({
+        userId: g.userId,
+        username: nameById.get(g.userId) ?? "???",
+        wins: g._count.userId,
+      }))
+      // Most wins first; ties broken alphabetically for a stable order.
+      .sort((a, b) => b.wins - a.wins || a.username.localeCompare(b.username));
+
+    return { leaders };
+  });
+
+  // GET /api/tournaments/:id — full bracket detail. Public so the bracket is
+  // viewable by logged-out visitors; a JWT (when supplied) adds viewer-aware
+  // flags (current match, registration preview perspective).
+  app.get("/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const viewerId = (request.user as { id: string }).id;
+    let viewerId: string | null = null;
+    try {
+      await request.jwtVerify();
+      viewerId = (request.user as { id: string }).id;
+    } catch {
+      // anonymous — fine
+    }
     const tournament = await prisma.tournament.findUnique({
       where: { id },
       include: {
