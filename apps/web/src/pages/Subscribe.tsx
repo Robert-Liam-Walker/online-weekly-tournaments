@@ -38,13 +38,13 @@ export default function Subscribe() {
           <div className="text-5xl mb-4">🎮</div>
           <h1 className="text-3xl font-bold text-white mb-3">You're subscribed!</h1>
           <p className="text-gray-400 mb-6">
-            Welcome to FoxTrot. You now have full access to the arena, challenges, tournaments, and friends list.
+            Welcome to the Nightly Tournament Service. You now have full access to the nightly tournaments.
           </p>
           <Link
-            to="/arena"
+            to="/tournament"
             className="inline-block bg-green-600 hover:bg-green-700 text-white font-semibold px-8 py-3 rounded-lg transition-colors"
           >
-            Go to Arena
+            Go to Tournament
           </Link>
         </div>
       </div>
@@ -120,7 +120,7 @@ export default function Subscribe() {
           <>
             <p className="text-gray-400 text-sm bg-gray-900/60 rounded-lg px-3 py-2.5">
               Checkout isn't open yet. For now, every nightly tournament is free —{" "}
-              <Link to="/tournaments" className="text-blue-400 hover:text-blue-300 underline">
+              <Link to="/tournament" className="text-blue-400 hover:text-blue-300 underline">
                 grab a spot in tonight's bracket
               </Link>
               .

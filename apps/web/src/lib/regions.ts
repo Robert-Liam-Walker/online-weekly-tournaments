@@ -47,6 +47,22 @@ export function regionTime(iso: string, region: TournamentRegion): string {
   });
 }
 
+/** Compact event time in the region's tz, e.g. "8PM EST" (drops ":00" minutes;
+ *  abbreviation reflects DST, so EDT in summer). */
+export function regionTimeShort(iso: string, region: TournamentRegion): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: REGIONS[region].tz,
+    timeZoneName: "short",
+  }).formatToParts(new Date(iso));
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const minute = get("minute");
+  const time = minute === "00" ? get("hour") : `${get("hour")}:${minute}`;
+  return `${time}${get("dayPeriod").toUpperCase()} ${get("timeZoneName")}`;
+}
+
 /**
  * The same instant on the viewer's clock, e.g. "2:00 PM your time" — or
  * null when the viewer's wall-clock time matches the region's (nothing

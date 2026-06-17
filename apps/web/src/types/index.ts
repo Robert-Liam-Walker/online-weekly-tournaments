@@ -99,9 +99,22 @@ export interface TournamentMatchDetail {
   readyAt?: string | null;
 }
 
+// One match of the full-size display bracket served before the tournament
+// starts. player1/player2 are null where the slot is still TBD (no entrant
+// yet, or an undecided earlier round).
+export interface PreviewBracketMatch {
+  matchKey: string;
+  round: number;
+  matchNumber: number;
+  player1: { id: string; username: string } | null;
+  player2: { id: string; username: string } | null;
+}
+
 export interface TournamentDetail extends Tournament {
   entries: TournamentEntryDetail[];
   matches: TournamentMatchDetail[];
+  // Present pre-start (REGISTRATION/UPCOMING): the entire bracket with TBD slots.
+  fullBracket?: PreviewBracketMatch[];
 }
 
 export interface TournamentReplay {

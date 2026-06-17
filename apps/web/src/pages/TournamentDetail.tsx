@@ -3,9 +3,10 @@ import { useParams, Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { getSocket } from "../lib/socket";
-import { REGIONS, isKnownRegion, regionDate, regionTime, viewerTime } from "../lib/regions";
+import { isKnownRegion, regionDate, regionTime, regionTimeShort, viewerTime } from "../lib/regions";
 import { useAuthStore } from "../hooks/useAuth";
 import {
+  PreviewBracketMatch,
   ReplayVerification,
   TournamentDetail as TournamentDetailType,
   TournamentMatchDetail,
@@ -25,17 +26,6 @@ const STUCK_MATCH_AFTER_MS = 10 * 60_000;
 function apiError(err: unknown, fallback: string) {
   const msg = (err as { response?: { data?: { error?: unknown } } })?.response?.data?.error;
   return typeof msg === "string" ? msg : fallback;
-}
-
-function statusBadge(status: string) {
-  const styles: Record<string, string> = {
-    REGISTRATION: "bg-blue-900 text-blue-300",
-    ACTIVE: "bg-green-900 text-green-300",
-    COMPLETED: "bg-gray-700 text-gray-300",
-    CANCELED: "bg-red-900 text-red-300",
-    UPCOMING: "bg-gray-700 text-gray-300",
-  };
-  return styles[status] ?? "bg-gray-700 text-gray-300";
 }
 
 function formatDate(iso: string) {
@@ -75,6 +65,26 @@ function buildBracketSets(t: TournamentDetailType): BracketSet[] {
   return sets;
 }
 
+/** Convert the pre-start full bracket (TBD slots) into renderable sets.
+ *  Nothing is decided yet: a fully-populated matchup reads as "ready" (white),
+ *  any TBD slot reads as upcoming (dimmed). Mirrors the in-bracket GFR rule:
+ *  the reset slot is hidden until both finalists exist. */
+function previewToSets(preview: PreviewBracketMatch[]): BracketSet[] {
+  const sets: BracketSet[] = [];
+  for (const m of preview) {
+    const p1Null = m.player1 == null;
+    const p2Null = m.player2 == null;
+    if (m.matchKey === "GFR" && (p1Null || p2Null)) continue;
+    sets.push({
+      key: m.matchKey,
+      p1: m.player1?.username ?? "TBD",
+      p2: m.player2?.username ?? "TBD",
+      state: !p1Null && !p2Null ? 0 : 3,
+    });
+  }
+  return sets;
+}
+
 function playerClass(set: BracketSet, which: 1 | 2) {
   if (set.state === 3) return "text-gray-500";
   if (set.state === 0) return "text-white";
@@ -85,24 +95,27 @@ function playerClass(set: BracketSet, which: 1 | 2) {
 function SetCard({ set }: { set: BracketSet }) {
   return (
     <div
-      className={`rounded-lg border px-3 py-1.5 text-sm min-w-[7.5rem] ${
+      className={`rounded-md border px-2 py-1 text-xs leading-tight ${
         set.state === 0 ? "border-yellow-700 bg-gray-800" : "border-gray-700 bg-gray-800/60"
       }`}
-      title={set.key}
+      title={`${set.key}: ${set.p1} vs ${set.p2}`}
     >
-      <div className={playerClass(set, 1)}>{set.p1}</div>
-      <div className={playerClass(set, 2)}>{set.p2}</div>
+      <div className={`${playerClass(set, 1)} truncate`}>{set.p1}</div>
+      <div className={`${playerClass(set, 2)} truncate`}>{set.p2}</div>
     </div>
   );
 }
 
+// Each round is an equal-width flex column (flex-1 + min-w-0) so the whole
+// bracket scales to the container — no horizontal scrolling. Long names
+// truncate inside their card rather than forcing the row wider.
 function BracketColumns({ sets, side }: { sets: BracketSet[]; side: "W" | "L" }) {
   const rounds = [...new Set(sets.filter((s) => s.key[0] === side).map((s) => s.key[1]))].sort();
   if (rounds.length === 0) return null;
   return (
     <>
       {rounds.map((r) => (
-        <div key={side + r} className="flex flex-col justify-around gap-2">
+        <div key={side + r} className="flex-1 min-w-0 flex flex-col justify-around gap-1.5">
           {sets
             .filter((s) => s.key[0] === side && s.key[1] === r)
             .map((s) => (
@@ -261,8 +274,11 @@ function ReplayReviewsPanel({ tournamentId }: { tournamentId: string }) {
   );
 }
 
-export default function TournamentDetail() {
-  const { id } = useParams<{ id: string }>();
+export default function TournamentDetail({ id: idProp }: { id?: string } = {}) {
+  // Rendered both at /tournament (id resolved by the parent, passed as a prop)
+  // and — for legacy/deep links — at /tournaments/:id via the route param.
+  const params = useParams<{ id: string }>();
+  const id = idProp ?? params.id;
   const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
 
@@ -319,7 +335,12 @@ export default function TournamentDetail() {
   const checkinOpensAt =
     new Date(t.scheduledAt).getTime() - CHECKIN_OPENS_MINUTES_BEFORE * 60_000;
   const checkinOpen = t.status === "REGISTRATION" && Date.now() >= checkinOpensAt;
-  const sets = buildBracketSets(t);
+  // Before the bracket is generated the API sends the full skeleton with TBD
+  // slots (fullBracket); once it's live the persisted matches drive the view.
+  const sets =
+    t.fullBracket && t.fullBracket.length > 0
+      ? previewToSets(t.fullBracket)
+      : buildBracketSets(t);
   const gfSets = sets.filter((s) => s.key[0] === "G");
   const entrantNames = new Map(t.entries.map((e) => [e.userId, e.user.username]));
   const stuckMatches =
@@ -335,19 +356,13 @@ export default function TournamentDetail() {
       : [];
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-6 space-y-6">
       <div>
-        <Link to="/tournaments" className="text-gray-400 text-sm hover:text-white">
-          ← Tournaments
-        </Link>
-        <div className="flex items-center gap-3 mt-2 flex-wrap">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-white">{t.name}</h1>
-          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge(t.status)}`}>
-            {t.status}
-          </span>
           {region && (
-            <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-700 text-gray-300">
-              {REGIONS[region].label}
+            <span className="text-gray-200 text-sm font-semibold">
+              {regionTimeShort(t.scheduledAt, region)}
             </span>
           )}
         </div>
@@ -363,7 +378,8 @@ export default function TournamentDetail() {
         )}
         {t.description && <p className="text-gray-400 text-sm mt-1">{t.description}</p>}
         <p className="text-gray-500 text-xs mt-2">
-          Playable from inside Melee: the Nightly Tournament Service client → Online Play → Find Tournament
+          Playable from inside Melee. Download the .zip → Unzip → Run Dolphin → Online Play
+          → Press A to Register. You'll be matched up with your opponent at 8PM sharp!
         </p>
       </div>
 
@@ -471,31 +487,36 @@ export default function TournamentDetail() {
           </ul>
         </div>
 
-        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 overflow-x-auto">
+        <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
           <h2 className="text-white font-semibold mb-3">Bracket</h2>
           {sets.length === 0 ? (
             <p className="text-gray-500 text-sm">The bracket generates when the tournament starts.</p>
           ) : (
-            <div className="space-y-6 min-w-fit">
+            <div className="space-y-6">
               <div>
                 <p className="text-gray-500 text-xs uppercase tracking-wide mb-2">Winners</p>
-                <div className="flex gap-4 items-stretch">
+                <div className="flex gap-2 items-stretch">
                   <BracketColumns sets={sets} side="W" />
                   {gfSets.length > 0 && (
-                    <div className="flex flex-col justify-start gap-2">
-                      <p className="text-yellow-500/80 text-[10px] uppercase tracking-wide -mb-1">
-                        Grand finals
-                      </p>
-                      {gfSets.map((s) => (
-                        <SetCard key={s.key} set={s} />
-                      ))}
+                    // Center the GF card in the column so it lines up with the
+                    // winners-final (W4) card; the label floats above, out of
+                    // flow, so it doesn't push the card off-center.
+                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                      <div className="relative flex flex-col gap-1.5">
+                        <span className="absolute bottom-full mb-1 left-0 right-0 text-yellow-500/80 text-[10px] uppercase tracking-wide truncate">
+                          Grand finals
+                        </span>
+                        {gfSets.map((s) => (
+                          <SetCard key={s.key} set={s} />
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
               <div>
                 <p className="text-gray-500 text-xs uppercase tracking-wide mb-2">Losers</p>
-                <div className="flex gap-4 items-stretch">
+                <div className="flex gap-2 items-stretch">
                   <BracketColumns sets={sets} side="L" />
                 </div>
               </div>

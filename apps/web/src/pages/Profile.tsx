@@ -1,15 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuthStore } from "../hooks/useAuth";
+import { Tournament } from "../types";
+import { isKnownRegion, regionDate, regionTimeShort } from "../lib/regions";
 import InGameName from "../components/InGameName";
-import {
-  saveSlippiFolder,
-  loadSlippiFolder,
-  clearSlippiFolder,
-} from "../lib/slippiFolder";
-
-const supportsFileSystemAccess = "showDirectoryPicker" in window;
 
 interface UserProfile {
   id: string;
@@ -21,20 +17,31 @@ interface UserProfile {
   createdAt: string;
 }
 
-export default function Settings() {
+function whenLabel(t: Tournament): string {
+  if (isKnownRegion(t.region)) {
+    return `${regionDate(t.scheduledAt, t.region)} · ${regionTimeShort(t.scheduledAt, t.region)}`;
+  }
+  return new Date(t.scheduledAt).toLocaleString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+export default function Profile() {
   const { isSubscribed } = useAuthStore();
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalError, setPortalError] = useState("");
-  const [folderName, setFolderName] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!supportsFileSystemAccess) return;
-    loadSlippiFolder().then((h) => setFolderName(h?.name ?? null));
-  }, []);
 
   const { data: profile, isLoading } = useQuery<UserProfile>({
     queryKey: ["me"],
     queryFn: () => api.get("/auth/me").then((r) => r.data),
+  });
+  const { data: tournaments = [] } = useQuery<Tournament[]>({
+    queryKey: ["tournaments"],
+    queryFn: () => api.get("/tournaments").then((r) => r.data),
   });
 
   async function openBillingPortal() {
@@ -55,8 +62,15 @@ export default function Settings() {
   if (isLoading) {
     return <div className="p-8 text-center text-gray-400">Loading...</div>;
   }
-
   if (!profile) return null;
+
+  // The next tournament: soonest still-open/upcoming event, else one in progress.
+  const bySoonest = (a: Tournament, b: Tournament) =>
+    new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
+  const next =
+    [...tournaments]
+      .filter((t) => t.status === "REGISTRATION" || t.status === "UPCOMING")
+      .sort(bySoonest)[0] ?? tournaments.find((t) => t.status === "ACTIVE");
 
   const statusColors: Record<string, string> = {
     ACTIVE: "bg-green-900 text-green-300",
@@ -67,9 +81,9 @@ export default function Settings() {
 
   return (
     <div className="max-w-2xl mx-auto p-6">
-      <h1 className="text-3xl font-bold text-white mb-6">Settings</h1>
+      <h1 className="text-3xl font-bold text-white mb-6">Profile</h1>
 
-      {/* Profile */}
+      {/* Account */}
       <div className="bg-gray-800 rounded-xl p-6 mb-4">
         <h2 className="text-white font-semibold mb-4">Profile</h2>
         <dl className="space-y-3">
@@ -86,50 +100,33 @@ export default function Settings() {
         </dl>
       </div>
 
+      {/* Next tournament */}
+      <div className="bg-gray-800 rounded-xl p-6 mb-4">
+        <h2 className="text-white font-semibold mb-3">Next tournament</h2>
+        {next ? (
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <Link to="/tournament" className="text-white font-semibold hover:text-yellow-300">
+                {next.name}
+              </Link>
+              <p className="text-gray-400 text-sm">{whenLabel(next)}</p>
+            </div>
+            <Link
+              to="/tournament"
+              className="text-blue-400 hover:text-blue-300 text-sm underline shrink-0"
+            >
+              View bracket
+            </Link>
+          </div>
+        ) : (
+          <p className="text-gray-400 text-sm">
+            No tournament scheduled yet — a new nightly bracket opens every evening.
+          </p>
+        )}
+      </div>
+
       {/* In-game name (the ABCD12 identity shown in Dolphin + brackets) */}
       <InGameName current={profile.displayName} />
-
-      {/* Slippi folder */}
-      {supportsFileSystemAccess && (
-        <div className="bg-gray-800 rounded-xl p-6 mb-4">
-          <h2 className="text-white font-semibold mb-1">Slippi Replays Folder</h2>
-          <p className="text-gray-400 text-sm mb-4">
-            Connect your Slippi replays folder and Nightly Tournament Service will automatically detect game results during a series — no uploads needed.
-          </p>
-          {folderName ? (
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-400" />
-                <span className="text-green-300 text-sm font-medium">{folderName}</span>
-              </div>
-              <button
-                onClick={async () => {
-                  await clearSlippiFolder();
-                  setFolderName(null);
-                }}
-                className="text-gray-500 hover:text-red-400 text-sm transition-colors ml-auto"
-              >
-                Disconnect
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={async () => {
-                try {
-                  const handle = await (window as unknown as { showDirectoryPicker: () => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker();
-                  await saveSlippiFolder(handle);
-                  setFolderName(handle.name);
-                } catch {
-                  // User cancelled
-                }
-              }}
-              className="bg-gray-700 hover:bg-gray-600 text-white px-5 py-2.5 rounded-lg font-medium transition-colors"
-            >
-              Connect Folder
-            </button>
-          )}
-        </div>
-      )}
 
       {/* Subscription */}
       <div className="bg-gray-800 rounded-xl p-6">
@@ -182,13 +179,7 @@ export default function Settings() {
   );
 }
 
-function Row({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) {
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between py-2 border-b border-gray-700 last:border-0">
       <dt className="text-gray-400 text-sm">{label}</dt>

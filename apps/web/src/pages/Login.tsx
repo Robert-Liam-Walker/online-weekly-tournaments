@@ -12,9 +12,9 @@ export default function Login() {
   const location = useLocation();
   // RequireAuth stashes the page the user was trying to reach (e.g. the device
   // link approval at /device?code=…). Return there after login so the
-  // pre-filled code survives the login bounce; default to the arena.
+  // pre-filled code survives the login bounce; default to the tournament.
   const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
-  const redirectTo = from?.pathname ? from.pathname + (from.search ?? "") : "/arena";
+  const redirectTo = from?.pathname ? from.pathname + (from.search ?? "") : "/tournament";
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

@@ -4,20 +4,19 @@
 // play. Login is automatic on first boot (the game opens the browser approval
 // page) — no launcher, no separate sign-in app.
 //
-// NOTE: the .zip asset lives on the public game-client repo (randalls-dolphin)
-// releases. We pin to /releases/latest so the link resolves to whatever the
-// newest published release is — no need to bump a version in the URL.
+// NOTE: the source repos are private, so the .zip is hosted on a public S3
+// bucket (nts-downloads-826671498662) rather than GitHub release assets.
+// Replace the object in that bucket to ship a new build (same URL, no code bump).
 
 import PublicFooter from "../components/PublicFooter";
 
 const ZIP_URL =
-  "https://github.com/Robert-Liam-Walker/randalls-dolphin/releases/latest/download/Nightly-Tournament-Service-Win.zip";
-const RELEASES_URL = "https://github.com/Robert-Liam-Walker/randalls-dolphin/releases/latest";
+  "https://nts-downloads-826671498662.s3.amazonaws.com/Nightly-Tournament-Service-Win.zip";
 
 const STEPS: Array<{ title: string; body: string }> = [
   {
     title: "Download and unzip",
-    body: "Download the .zip and extract it anywhere (your Desktop is fine). Windows SmartScreen may warn about an unsigned app — choose More info, then Run anyway.",
+    body: "Download the .zip and extract it anywhere (your Desktop is fine).",
   },
   {
     title: "Add your Melee ISO",
@@ -35,13 +34,13 @@ const STEPS: Array<{ title: string; body: string }> = [
 
 export default function Download() {
   return (
-    <div className="min-h-screen bg-gray-950">
+    <div className="bg-gray-950">
       <div className="max-w-3xl mx-auto px-6 py-12">
       <div className="text-center mb-10">
         <img src="/favicon.svg" alt="Nightly Tournament Service" className="w-24 h-24 mx-auto mb-4" />
         <h1 className="text-4xl font-bold text-white mb-3">Nightly Tournament Service</h1>
         <p className="text-gray-400 text-lg mb-6">
-          Free Melee brackets every night at 8pm. Powered by Slippi rollback netplay.
+          Free Melee brackets every night at 8pm. Powered by Slippi's open-source rollback netcode.
         </p>
         <a
           href={ZIP_URL}
@@ -49,12 +48,7 @@ export default function Download() {
         >
           Download for Windows (.zip)
         </a>
-        <p className="text-gray-600 text-sm mt-3">
-          Windows 10/11, 64-bit ·{" "}
-          <a href={RELEASES_URL} className="underline hover:text-gray-400">
-            all releases
-          </a>
-        </p>
+        <p className="text-gray-600 text-sm mt-3">Windows 10/11, 64-bit</p>
       </div>
 
       <div className="space-y-4">
@@ -71,8 +65,7 @@ export default function Download() {
 
       <p className="text-gray-600 text-xs text-center mt-10">
         You must own a legally obtained copy of Super Smash Bros. Melee. Nightly
-        Tournaments is not affiliated with Nintendo or the Slippi team. The game client and
-        emulator are open source (GPL) — sources at github.com/Robert-Liam-Walker.
+        Tournaments is not affiliated with Nintendo or the Slippi team.
       </p>
       </div>
       <PublicFooter />

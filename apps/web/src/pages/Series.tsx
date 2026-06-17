@@ -159,7 +159,7 @@ export default function SeriesPage() {
   return (
     <div className="max-w-2xl mx-auto p-6">
       <div className="mb-4">
-        <Link to="/arena" className="text-gray-400 hover:text-white text-sm">← Back to Arena</Link>
+        <Link to="/tournament" className="text-gray-400 hover:text-white text-sm">← Back to Tournament</Link>
       </div>
 
       {/* Score card */}
