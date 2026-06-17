@@ -5,6 +5,8 @@ import { api } from "../lib/api";
 import { getSocket } from "../lib/socket";
 import { isKnownRegion, regionDate, regionTime, regionTimeShort, viewerTime } from "../lib/regions";
 import { useAuthStore } from "../hooks/useAuth";
+import { useMessenger } from "../hooks/useMessenger";
+import { SpeechBubbleIcon } from "../components/Messenger";
 import {
   PreviewBracketMatch,
   ReplayVerification,
@@ -280,6 +282,7 @@ export default function TournamentDetail({ id: idProp }: { id?: string } = {}) {
   const params = useParams<{ id: string }>();
   const id = idProp ?? params.id;
   const user = useAuthStore((s) => s.user);
+  const requestOpenChat = useMessenger((s) => s.requestOpen);
   const queryClient = useQueryClient();
 
   const { data: t, isLoading } = useQuery<TournamentDetailType>({
@@ -460,6 +463,15 @@ export default function TournamentDetail({ id: idProp }: { id?: string } = {}) {
                   )}
                   {e.checkedInAt && t.status === "REGISTRATION" && (
                     <span className="text-green-500 text-xs">✓</span>
+                  )}
+                  {user && e.userId !== user.id && !e.dqAt && (
+                    <button
+                      onClick={() => requestOpenChat({ id: e.userId, username: e.user.username })}
+                      title={`Message ${e.user.username}`}
+                      className="ml-auto shrink-0 text-gray-500 hover:text-blue-400"
+                    >
+                      <SpeechBubbleIcon className="w-4 h-4" />
+                    </button>
                   )}
                   {isAdmin &&
                     !e.dqAt &&

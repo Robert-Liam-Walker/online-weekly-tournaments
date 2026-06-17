@@ -19,6 +19,7 @@ import { deviceRoutes } from "./routes/device";
 import { replayRoutes } from "./routes/replays";
 import { subscriptionRoutes } from "./routes/subscriptions";
 import { chatRoutes } from "./routes/chat";
+import { messageRoutes } from "./routes/messages";
 import { launcherRoutes } from "./routes/launcher";
 import { stripeWebhookRoute } from "./routes/webhooks";
 import { registerSocketHandlers } from "./plugins/socket";
@@ -165,6 +166,7 @@ async function main() {
   await app.register(deviceRoutes, { prefix: "/api/device" });
   await app.register(replayRoutes, { prefix: "/api/replays" });
   await app.register(chatRoutes, { prefix: "/api/chat" });
+  await app.register(messageRoutes, { prefix: "/api/messages" });
   await app.register(launcherRoutes, { prefix: "/api/launcher" });
 
   registerSocketHandlers(app, io);

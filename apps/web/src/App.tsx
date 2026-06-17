@@ -17,6 +17,7 @@ import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import RequireAuth from "./components/RequireAuth";
 import RandallIcon from "./components/RandallIcon";
+import Messenger from "./components/Messenger";
 import { useAuthStore } from "./hooks/useAuth";
 
 const queryClient = new QueryClient({
@@ -72,6 +73,7 @@ function Layout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-gray-950 text-white">
       <Nav />
       <main className="py-8">{children}</main>
+      <Messenger />
     </div>
   );
 }
