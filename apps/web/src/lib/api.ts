@@ -2,8 +2,13 @@ import axios from "axios";
 
 // Same-origin "/api" by default (dev: Vite proxy; prod-ALB: path routing).
 // Staging serves the SPA from S3 with the API on a different origin (EB), so
-// VITE_API_URL can point at that origin and "/api" is appended to it.
-const apiOrigin = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, "");
+// VITE_API_URL can point at that origin and "/api" is appended to it. The value
+// may be given bare ("https://host") OR already include the prefix
+// ("https://host/api"); strip a trailing "/api" (and slashes) so the baseURL
+// always ends in exactly one — a doubled "/api/api" 404s every request.
+const apiOrigin = (import.meta.env.VITE_API_URL as string | undefined)
+  ?.replace(/\/+$/, "")
+  .replace(/\/api$/, "");
 
 export const api = axios.create({
   baseURL: apiOrigin ? `${apiOrigin}/api` : "/api",
