@@ -15,15 +15,23 @@ import { markPresent } from "../lib/presence";
 import { generateDoubleElim } from "@foxtrot/shared";
 import { entrantName } from "../lib/displayName";
 
+function nextPowerOfTwo(n: number): number {
+  let p = 1;
+  while (p < n) p *= 2;
+  return p;
+}
+
 /**
- * Registration-time preview bracket: seed the CURRENT registrants into a
- * double-elim bracket in memory (NOT persisted) so the in-game bracket fills
- * and grows as people register. Unfilled slots (byes / undecided) are null.
- * Seeds by the same ordering startTournament uses ([seed asc, createdAt asc]);
- * no new sort. Zero registrants → []. Bracket size grows with the count
- * (generateDoubleElim pads to the next power of 2 at or above it, min 4).
+ * Full-size double-elim skeleton sized to the tournament CAPACITY, with the
+ * current registrants seeded into their slots and every other slot shown as
+ * TBD (player = null) — so the entire bracket is visible before the tournament
+ * starts, even with zero registrants. Drives BOTH the website detail page
+ * (fullBracket) and the in-game preview bracket (previewBracket), so the two
+ * always match and the in-game view never shows "No sets yet". Not persisted;
+ * rebuilt per request. Seeds by the same ordering startTournament uses
+ * ([seed asc, createdAt asc]).
  */
-function buildPreviewBracket(
+function buildFullBracket(
   entries: {
     userId: string;
     seed: number | null;
@@ -31,6 +39,7 @@ function buildPreviewBracket(
     dqAt: Date | null;
     user: { id: string; username: string; displayName: string | null };
   }[],
+  maxEntrants: number,
   viewerId: string | null
 ) {
   const ordered = entries
@@ -40,9 +49,7 @@ function buildPreviewBracket(
         (a.seed ?? Number.MAX_SAFE_INTEGER) - (b.seed ?? Number.MAX_SAFE_INTEGER) ||
         a.createdAt.getTime() - b.createdAt.getTime()
     );
-  if (ordered.length === 0) return [];
-  // GUEST numbers follow REGISTRATION order (createdAt), so they stay stable even
-  // after seeding reorders the bracket. Custom names override.
+  // GUEST numbers follow REGISTRATION order (createdAt); custom names override.
   const registrationOrder = new Map(
     [...ordered]
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
@@ -51,20 +58,26 @@ function buildPreviewBracket(
   const nameById = new Map(
     ordered.map((e) => [e.userId, entrantName(e.user.displayName, registrationOrder.get(e.userId) ?? 1)])
   );
-  const bracket = generateDoubleElim(ordered.map((e) => e.userId));
+  // Fill EVERY slot so there are no byes: real entrants (seed order) first,
+  // unique placeholders for the rest. Placeholder slots — and all not-yet-
+  // resolved later rounds — surface as TBD (null) on the client.
+  const size = Math.max(4, nextPowerOfTwo(maxEntrants));
+  const slots = Array.from({ length: size }, (_, i) => ordered[i]?.userId ?? `__tbd_${i}`);
+  const bracket = generateDoubleElim(slots);
   const out = [];
   for (const m of bracket.matches.values()) {
     const p1 = m.p1 ?? null;
     const p2 = m.p2 ?? null;
+    const p1Real = p1 != null && nameById.has(p1);
+    const p2Real = p2 != null && nameById.has(p2);
     out.push({
       matchKey: m.def.key,
       round: m.def.round,
       matchNumber: m.def.matchNumber,
-      player1: p1 ? { id: p1, username: nameById.get(p1) ?? "?" } : null,
-      player2: p2 ? { id: p2, username: nameById.get(p2) ?? "?" } : null,
-      winnerId: m.winnerId ?? null,
-      viewerCurrent:
-        m.winnerId == null && p1 != null && p2 != null && (p1 === viewerId || p2 === viewerId),
+      player1: p1Real ? { id: p1!, username: nameById.get(p1!)! } : null,
+      player2: p2Real ? { id: p2!, username: nameById.get(p2!)! } : null,
+      winnerId: null as string | null,
+      viewerCurrent: p1Real && p2Real && (p1 === viewerId || p2 === viewerId),
     });
   }
   return out;
@@ -221,11 +234,19 @@ export async function tournamentRoutes(app: FastifyInstance) {
     }));
     // Before the bracket is generated (REGISTRATION), serve an in-memory preview
     // built from the current registrants so the bracket fills as people join.
-    const previewBracket =
-      tournament.status === "REGISTRATION"
-        ? buildPreviewBracket(tournament.entries, viewerId)
+    // Full-size bracket skeleton with TBD slots, shown before the bracket is
+    // generated (REGISTRATION/UPCOMING). After start, the persisted `matches`
+    // are the source of truth. The in-game client reads `previewBracket` only
+    // during REGISTRATION; the web reads `fullBracket`. Both are the same data
+    // so the in-game and website brackets match (and the in-game view shows the
+    // full TBD bracket instead of "No sets yet").
+    const full =
+      tournament.status === "REGISTRATION" || tournament.status === "UPCOMING"
+        ? buildFullBracket(tournament.entries, tournament.maxEntrants, viewerId)
         : undefined;
-    return { ...tournament, entries, matches, previewBracket };
+    const previewBracket = tournament.status === "REGISTRATION" ? full : undefined;
+    const fullBracket = full;
+    return { ...tournament, entries, matches, previewBracket, fullBracket };
   });
 
   // POST /api/tournaments/:id/register
