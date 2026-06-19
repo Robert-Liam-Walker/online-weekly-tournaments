@@ -2,29 +2,10 @@ export default function About() {
   return (
     <div className="max-w-6xl mx-auto p-6">
       <div className="grid md:grid-cols-3 gap-6 items-start">
-        {/* Left: About us */}
+        {/* Left: About */}
         <section>
-          <h1 className="text-3xl font-bold text-white mb-6">About us</h1>
-          <div className="bg-gray-800 rounded-xl p-6 space-y-4">
-            <p className="text-gray-300">
-              Run by <span className="text-white font-semibold">Panini</span> —{" "}
-              <a
-                href="https://slippi.gg/user/wede-971"
-                target="_blank"
-                rel="noreferrer"
-                className="text-blue-400 hover:text-blue-300 underline"
-              >
-                slippi.gg/user/wede-971
-              </a>
-            </p>
-            <p className="text-gray-300 leading-relaxed">
-              I wanted a tournament mode instead of just connecting to randoms for single
-              matches. Ranked is cool, but nothing beats the feeling of competition that a
-              tournament gives you. I mostly play Melee online, and I don't feel like
-              travelling an hour to my local each week, so why not bring the tournament scene
-              online? I know some people organize online tournaments occasionally, but they're
-              hard to find out about, and sometimes they're just one-offs.
-            </p>
+          <h1 className="text-3xl font-bold text-white mb-6">About</h1>
+          <div className="bg-gray-800 rounded-xl p-6">
             <p className="text-gray-300 leading-relaxed">
               Online Nightly Tournament Series is a daily (nightly) repeating tournament series,
               fully online. No sign-up required, no messing with start.gg and managing Discord,
