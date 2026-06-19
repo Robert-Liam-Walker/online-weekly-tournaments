@@ -26,7 +26,7 @@ export default function About() {
               hard to find out about, and sometimes they're just one-offs.
             </p>
             <p className="text-gray-300 leading-relaxed">
-              Nightly Tournament Service is a daily (nightly) repeating tournament series,
+              Online Nightly Tournament Series is a daily (nightly) repeating tournament series,
               fully online. No sign-up required, no messing with start.gg and managing Discord,
               messaging people to start the match, or stage striking on a website. It's all in
               Dolphin, like Slippi. The website is just an added bonus. Download the Dolphin

@@ -1,4 +1,4 @@
-# Nightly Tournament Service — backend + web (FoxTrot repo)
+# Online Nightly Tournament Series — backend + web (FoxTrot repo)
 
 This repo is the **backend (`apps/api`)** and **website (`apps/web`)** for Nightly
 Tournament Service. The game client (Slippi Dolphin fork, EXI tournament scene)

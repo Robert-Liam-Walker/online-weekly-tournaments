@@ -340,7 +340,7 @@ export default function Tournaments() {
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-3xl font-bold text-white mb-1">Nightly Tournament Service</h1>
+      <h1 className="text-3xl font-bold text-white mb-1">Online Nightly Tournament Series</h1>
       <p className="text-gray-400 mb-6">
         A free 32-player bracket in every region, every night at 8 PM local.
       </p>

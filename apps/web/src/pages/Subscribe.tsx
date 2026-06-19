@@ -38,7 +38,7 @@ export default function Subscribe() {
           <div className="text-5xl mb-4">🎮</div>
           <h1 className="text-3xl font-bold text-white mb-3">You're subscribed!</h1>
           <p className="text-gray-400 mb-6">
-            Welcome to the Nightly Tournament Service. You now have full access to the nightly tournaments.
+            Welcome to the Online Nightly Tournament Series. You now have full access to the nightly tournaments.
           </p>
           <Link
             to="/tournament"

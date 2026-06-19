@@ -24,7 +24,7 @@ import { SendEmailCommand, SESClient } from "@aws-sdk/client-ses";
 const SES_REGION = "us-east-1";
 
 /** Display name shown in recipients' inboxes; the address stays the From env value. */
-const FROM_DISPLAY_NAME = "Nightly Tournament Service";
+const FROM_DISPLAY_NAME = "Online Nightly Tournament Series";
 
 let sesClient: SESClient | null = null;
 
@@ -55,7 +55,7 @@ function resolveProvider(): EmailProvider {
   return "console";
 }
 
-/** Branded From header, e.g. `Nightly Tournament Service <no-reply@…>`. */
+/** Branded From header, e.g. `Online Nightly Tournament Series <no-reply@…>`. */
 function brandedFrom(address: string): string {
   return address.includes("<") ? address : `${FROM_DISPLAY_NAME} <${address}>`;
 }
@@ -136,14 +136,14 @@ export async function sendPasswordResetEmail(
   const text = [
     greeting,
     "",
-    "Someone requested a password reset for the Nightly Tournament Service account using this email address.",
+    "Someone requested a password reset for the Online Nightly Tournament Series account using this email address.",
     "",
     `Reset your password here (link expires in ${RESET_LINK_EXPIRY_TEXT}):`,
     resetUrl,
     "",
     "If you didn't request this, you can safely ignore this email — your password will not change.",
     "",
-    "— Nightly Tournament Service",
+    "— Online Nightly Tournament Series",
   ].join("\n");
 
   const safeGreeting = username ? `Hi ${escapeHtml(username)},` : "Hi,";
@@ -152,9 +152,9 @@ export async function sendPasswordResetEmail(
   const html = [
     `<div style="font-family: Arial, Helvetica, sans-serif; background-color: #f4f4f7; padding: 24px;">`,
     `  <div style="max-width: 520px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; padding: 32px; color: #333333;">`,
-    `    <h1 style="font-size: 20px; margin: 0 0 16px 0; color: #1a1a2e;">Nightly Tournament Service</h1>`,
+    `    <h1 style="font-size: 20px; margin: 0 0 16px 0; color: #1a1a2e;">Online Nightly Tournament Series</h1>`,
     `    <p style="font-size: 15px; line-height: 1.5; margin: 0 0 16px 0;">${safeGreeting}</p>`,
-    `    <p style="font-size: 15px; line-height: 1.5; margin: 0 0 16px 0;">Someone requested a password reset for the Nightly Tournament Service account using this email address.</p>`,
+    `    <p style="font-size: 15px; line-height: 1.5; margin: 0 0 16px 0;">Someone requested a password reset for the Online Nightly Tournament Series account using this email address.</p>`,
     `    <p style="margin: 0 0 24px 0;">`,
     `      <a href="${safeUrl}" style="display: inline-block; background-color: #4f46e5; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: bold; padding: 12px 24px; border-radius: 6px;">Reset your password</a>`,
     `    </p>`,
@@ -167,7 +167,7 @@ export async function sendPasswordResetEmail(
 
   await sendEmail({
     to,
-    subject: "Reset your Nightly Tournament Service password",
+    subject: "Reset your Online Nightly Tournament Series password",
     text,
     html,
   });

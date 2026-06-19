@@ -1,6 +1,6 @@
 # Architecture
 
-Nightly Tournament Service — a fully-online, nightly Melee tournament that runs
+Online Nightly Tournament Series — a fully-online, nightly Melee tournament that runs
 inside a Slippi Dolphin fork, with a companion website. This document is the
 system map; it also calls out what is MVP vs. what is needed for a hardened
 production launch.

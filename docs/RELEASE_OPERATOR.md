@@ -51,8 +51,8 @@ existing id). Prints the S3 console link + artifact URLs + sha256s.
 npx tsx apps/api/scripts/release.ts promote --channel candidate --release v2.1.0
 ```
 Fresh-install E2E — launch the **installed** app on the candidate channel:
-- PowerShell: `$env:FOXTROT_CHANNEL='candidate'; & "$env:LOCALAPPDATA\Programs\foxtrot-launcher\Nightly Tournament Service.exe"`
-- cmd: `set FOXTROT_CHANNEL=candidate && "%LOCALAPPDATA%\Programs\foxtrot-launcher\Nightly Tournament Service.exe"`
+- PowerShell: `$env:FOXTROT_CHANNEL='candidate'; & "$env:LOCALAPPDATA\Programs\foxtrot-launcher\Online Nightly Tournament Series.exe"`
+- cmd: `set FOXTROT_CHANNEL=candidate && "%LOCALAPPDATA%\Programs\foxtrot-launcher\Online Nightly Tournament Series.exe"`
 
 The launcher pulls `…/api/launcher/manifest?channel=candidate`, downloads +
 (gamefiles) sha-verifies + extracts, then: link account → register → play a

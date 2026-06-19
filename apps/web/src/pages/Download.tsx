@@ -37,8 +37,8 @@ export default function Download() {
     <div className="bg-gray-950">
       <div className="max-w-3xl mx-auto px-6 py-12">
       <div className="text-center mb-10">
-        <img src="/favicon.svg" alt="Nightly Tournament Service" className="w-24 h-24 mx-auto mb-4" />
-        <h1 className="text-4xl font-bold text-white mb-3">Nightly Tournament Service</h1>
+        <img src="/favicon.svg" alt="Online Nightly Tournament Series" className="w-24 h-24 mx-auto mb-4" />
+        <h1 className="text-4xl font-bold text-white mb-3">Online Nightly Tournament Series</h1>
         <p className="text-gray-400 text-lg mb-6">
           Free Melee brackets every night at 8pm. Powered by Slippi's open-source rollback netcode.
         </p>

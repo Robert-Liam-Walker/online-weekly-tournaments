@@ -47,7 +47,7 @@ export default function Leaderboard() {
         HIGH SCORES
       </h1>
       <p className="text-[10px] sm:text-xs text-cyan-300 mt-4 mb-10 text-center">
-        NIGHTLY TOURNAMENT SERVICE
+        ONLINE NIGHTLY TOURNAMENT SERIES
       </p>
 
       <div className="w-full max-w-2xl">

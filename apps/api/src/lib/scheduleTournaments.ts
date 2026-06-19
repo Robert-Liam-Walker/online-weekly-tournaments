@@ -4,7 +4,7 @@ import { emitTournamentUpdate } from "./tournamentEvents";
 import { REGIONS, nextNightAt, regionDateLabel } from "./regions";
 
 /**
- * Nightly Tournament Service: every night, ONE free United States event
+ * Online Nightly Tournament Series: every night, ONE free United States event
  * at 20:00 US-Eastern — DST-correct via lib/regions.ts. The series reuses
  * the NA_EAST region/timezone machinery (America/New_York). Events are
  * stored as absolute UTC instants; clients render series-local + viewer-
@@ -36,7 +36,7 @@ import { REGIONS, nextNightAt, regionDateLabel } from "./regions";
 const SERIES_REGION = REGIONS.find((r) => r.code === "NA_EAST")!;
 
 /** Name shown for the nightly event. Date/time are shown separately by the UI. */
-const SERIES_NAME = "Nightly Tournament";
+const SERIES_NAME = "Tonight's Tournament";
 
 export async function ensureNightlyTournaments(now: Date = new Date()) {
   const region = SERIES_REGION;

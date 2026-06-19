@@ -38,7 +38,7 @@ function Nav() {
   return (
     <nav className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center gap-2">
       <RandallIcon size={22} />
-      <span className="text-white font-bold text-lg mr-4 ml-1.5">Nightly Tournament Service</span>
+      <span className="text-white font-bold text-lg mr-4 ml-1.5">Online Nightly Tournament Series</span>
       <NavLink to="/tournament" className={linkClass}>Tournament</NavLink>
       <NavLink to="/download" className={linkClass}>Download</NavLink>
       <NavLink to="/about" className={linkClass}>About</NavLink>
