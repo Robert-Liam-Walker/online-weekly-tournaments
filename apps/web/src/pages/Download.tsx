@@ -11,7 +11,7 @@
 import PublicFooter from "../components/PublicFooter";
 
 const ZIP_URL =
-  "https://nts-downloads-826671498662.s3.amazonaws.com/Weekly-Tournament-Service-Win.zip";
+  "https://nts-downloads-826671498662.s3.amazonaws.com/Online-Weekly-Tournament-Series-Win.zip";
 
 const STEPS: Array<{ title: string; body: string }> = [
   {
