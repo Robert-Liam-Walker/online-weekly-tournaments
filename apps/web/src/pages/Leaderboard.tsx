@@ -47,7 +47,7 @@ export default function Leaderboard() {
         HIGH SCORES
       </h1>
       <p className="text-[10px] sm:text-xs text-cyan-300 mt-4 mb-10 text-center">
-        ONLINE NIGHTLY TOURNAMENT SERIES
+        ONLINE WEEKLY TOURNAMENT SERIES
       </p>
 
       <div className="w-full max-w-2xl">
@@ -59,7 +59,7 @@ export default function Leaderboard() {
           <div className="text-center text-gray-400 space-y-4">
             <p className="text-xs leading-relaxed">NO CHAMPIONS YET</p>
             <p className="text-[10px] text-gray-500 leading-relaxed">
-              WIN A NIGHTLY BRACKET
+              WIN A WEEKLY BRACKET
               <br />
               TO CLAIM THE TOP SPOT
             </p>

@@ -21,7 +21,7 @@ is just how you play. The Slippi-side logic stays as thin as possible.
 **Name:** Online Nightly Tournament Series (Randall: the Pokémon Stadium cloud
 — Melee-native, memorable).
 
-**Domain:** randallsnightly.com (registered 2026-06-11).
+**Domain:** onlineweeklytournaments.com (registered 2026-06-11).
 
 *(The token-buying flow above is the eventual paid product; the launch
 release itself is free-only — see Revenue model.)*
@@ -228,7 +228,7 @@ in-game event browser/lobby/bracket view.
    deferred. Gated on the in-game 32-man UI eyeball. — LOCKED
 7. **Regions v1 = EU (Europe/Berlin) / NA East / NA West at 20:00
    region-local** (US Central dropped). — LOCKED
-8. **Domain = randallsnightly.com.** — LOCKED (registration pending
+8. **Domain = onlineweeklytournaments.com.** — LOCKED (registration pending
    Robert's registrant contact details)
 
 ## Still open

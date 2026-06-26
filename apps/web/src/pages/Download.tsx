@@ -11,7 +11,7 @@
 import PublicFooter from "../components/PublicFooter";
 
 const ZIP_URL =
-  "https://nts-downloads-826671498662.s3.amazonaws.com/Nightly-Tournament-Service-Win.zip";
+  "https://nts-downloads-826671498662.s3.amazonaws.com/Weekly-Tournament-Service-Win.zip";
 
 const STEPS: Array<{ title: string; body: string }> = [
   {
@@ -27,8 +27,8 @@ const STEPS: Array<{ title: string; body: string }> = [
     body: "Double-click Melee to boot. The first launch opens your browser to the link page — sign in (or create an account) and click Approve. The game picks up the link in a few seconds. One time only; it stays linked.",
   },
   {
-    title: "Play tonight at 8pm",
-    body: "Open Online Play and register for tonight's free bracket. 16-player double elimination, best of 3, every single night.",
+    title: "Play Friday at 8pm",
+    body: "Open Online Play and register for this Friday's free bracket. 16-player double elimination, best of 3, every Friday.",
   },
 ];
 
@@ -37,10 +37,10 @@ export default function Download() {
     <div className="bg-gray-950">
       <div className="max-w-3xl mx-auto px-6 py-12">
       <div className="text-center mb-10">
-        <img src="/favicon.svg" alt="Online Nightly Tournament Series" className="w-24 h-24 mx-auto mb-4" />
-        <h1 className="text-4xl font-bold text-white mb-3">Online Nightly Tournament Series</h1>
+        <img src="/favicon.svg" alt="Online Weekly Tournament Series" className="w-24 h-24 mx-auto mb-4" />
+        <h1 className="text-4xl font-bold text-white mb-3">Online Weekly Tournament Series</h1>
         <p className="text-gray-400 text-lg mb-6">
-          Free Melee brackets every night at 8pm. Powered by Slippi's open-source rollback netcode.
+          Free Melee brackets every Friday at 8pm Eastern. Powered by Slippi's open-source rollback netcode.
         </p>
         <a
           href={ZIP_URL}
@@ -64,7 +64,7 @@ export default function Download() {
       </div>
 
       <p className="text-gray-600 text-xs text-center mt-10">
-        You must own a legally obtained copy of Super Smash Bros. Melee. Nightly
+        You must own a legally obtained copy of Super Smash Bros. Melee. Weekly
         Tournaments is not affiliated with Nintendo or the Slippi team.
       </p>
       </div>

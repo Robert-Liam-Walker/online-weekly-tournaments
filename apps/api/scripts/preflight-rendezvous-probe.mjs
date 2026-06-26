@@ -1,6 +1,6 @@
 // Prod rendezvous network preflight (run from OUTSIDE the cloud):
 //
-//   node scripts/preflight-rendezvous-probe.mjs rdv.randallsnightly.com 41100
+//   node scripts/preflight-rendezvous-probe.mjs rdv.onlineweeklytournaments.com 41100
 //
 // Sends a schema-valid announce with a bogus token. The registrar answers
 // well-formed announces — even unknown tokens — with an error reply
@@ -10,7 +10,7 @@
 // -> UDP return path. No accounts or seed data needed.
 import dgram from "node:dgram";
 
-const host = process.argv[2] ?? "rdv.randallsnightly.com";
+const host = process.argv[2] ?? "rdv.onlineweeklytournaments.com";
 const port = Number(process.argv[3] ?? "41100");
 
 const probe = JSON.stringify({

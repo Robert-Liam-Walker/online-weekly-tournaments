@@ -11,7 +11,7 @@ import "dotenv/config"; // load apps/api/.env when run standalone (run from apps
 //   2. Creates "Randalls 32 Demo" (DE, BO3, cap 32) starting ~7 min out.
 //   3. Registers 32 demo users (paced ~7s apart — /auth/* allows 10/min/IP),
 //      enters + checks in all of them.
-//   4. Sprinkles demo users into tonight's three nightly regionals
+//   4. Sprinkles demo users into tonight's three weekly regionals
 //      (entry only, no check-in — they'll be excluded at start as usual).
 //   5. Waits for the per-minute cron to auto-start the demo, then reports
 //      all of W1, half of L1, 40% of W2 so the bracket shows decided,
@@ -21,7 +21,7 @@ import "dotenv/config"; // load apps/api/.env when run standalone (run from apps
 // sweep will DQ the idle demo players 10 minutes after start.
 // Demo users share DEMO_PASSWORD below — delete these accounts before launch.
 
-const API = process.env.SEED_API_URL ?? "https://randallsnightly.com/api";
+const API = process.env.SEED_API_URL ?? "https://onlineweeklytournaments.com/api";
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? "robert.liam.walker@gmail.com";
 const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD;
 const DEMO_PASSWORD = "***REMOVED***";

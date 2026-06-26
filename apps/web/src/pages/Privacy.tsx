@@ -19,7 +19,7 @@ export default function Privacy() {
         <p className="text-gray-500 text-sm mb-10">Last updated: June 12, 2026</p>
 
         <Section title="What we store">
-          <p>We keep the data needed to run nightly tournaments, and not much else:</p>
+          <p>We keep the data needed to run weekly tournaments, and not much else:</p>
           <ul className="list-disc pl-6 space-y-1">
             <li>Your email address (for sign-in and password resets)</li>
             <li>Your username</li>

@@ -7,7 +7,7 @@ export default function PublicFooter() {
     <footer className="border-t border-gray-800 mt-16 py-8">
       <div className="max-w-5xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
         <p className="text-gray-600 text-sm">
-          Online Nightly Tournament Series — free Melee brackets, every night.
+          Online Weekly Tournament Series — free Melee brackets, every Friday.
         </p>
         <nav className="flex items-center gap-6 text-sm">
           <Link to="/download" className="text-gray-400 hover:text-white">

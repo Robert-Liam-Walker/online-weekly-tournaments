@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   REGIONS,
-  nextNightAt,
+  nextWeeklyAt,
   utcInstantForWallClock,
   regionDateLabel,
 } from "../src/lib/regions";
@@ -63,30 +63,42 @@ describe("utcInstantForWallClock — DST matrix", () => {
   });
 });
 
-describe("nextNightAt", () => {
-  it("returns tonight when 20:00 local has not passed", () => {
-    // 2026-06-12 10:00 EDT == 14:00 UTC
-    const now = new Date("2026-06-12T14:00:00.000Z");
-    expect(nextNightAt(NAE, now).toISOString()).toBe("2026-06-13T00:00:00.000Z"); // 8pm EDT
+describe("nextWeeklyAt — Friday 20:00 series", () => {
+  // June 2026 Fridays (NA East): Jun 5, 12, 19, 26. 8pm EDT == 00:00 UTC next day.
+
+  it("returns the upcoming Friday from a mid-week day", () => {
+    // 2026-06-22 is a Monday, 10:00 EDT == 14:00 UTC.
+    const now = new Date("2026-06-22T14:00:00.000Z");
+    expect(nextWeeklyAt(NAE, now).toISOString()).toBe("2026-06-27T00:00:00.000Z"); // 8pm EDT Jun 26
   });
 
-  it("rolls to tomorrow when 20:00 local has passed", () => {
-    // 2026-06-12 21:00 EDT == 2026-06-13 01:00 UTC
-    const now = new Date("2026-06-13T01:00:00.000Z");
-    expect(nextNightAt(NAE, now).toISOString()).toBe("2026-06-14T00:00:00.000Z");
+  it("returns today when it is Friday and 20:00 local has not passed", () => {
+    // 2026-06-26 (Friday) 10:00 EDT == 14:00 UTC.
+    const now = new Date("2026-06-26T14:00:00.000Z");
+    expect(nextWeeklyAt(NAE, now).toISOString()).toBe("2026-06-27T00:00:00.000Z");
   });
 
-  it("is strictly future at exactly 20:00 local", () => {
-    const tonight = new Date("2026-06-13T00:00:00.000Z"); // 8pm EDT exactly
-    expect(nextNightAt(NAE, tonight).toISOString()).toBe("2026-06-14T00:00:00.000Z");
+  it("rolls to next Friday once Friday 20:00 local has passed", () => {
+    // 2026-06-26 21:00 EDT == 2026-06-27 01:00 UTC.
+    const now = new Date("2026-06-27T01:00:00.000Z");
+    expect(nextWeeklyAt(NAE, now).toISOString()).toBe("2026-07-04T00:00:00.000Z"); // 8pm EDT Jul 3
   });
 
-  it("regions disagree on calendar date near midnight boundaries", () => {
-    // 2026-06-13 01:30 UTC: EU is already June 13 (03:30 CEST) while NA West
-    // is still June 12 (18:30 PDT) — each region gets its own local night.
-    const now = new Date("2026-06-13T01:30:00.000Z");
-    expect(nextNightAt(EU, now).toISOString()).toBe("2026-06-13T18:00:00.000Z"); // 8pm CEST Jun 13
-    expect(nextNightAt(NAW, now).toISOString()).toBe("2026-06-13T03:00:00.000Z"); // 8pm PDT Jun 12
+  it("is strictly future at exactly Friday 20:00 local", () => {
+    const friday8pm = new Date("2026-06-27T00:00:00.000Z"); // 8pm EDT Jun 26 exactly
+    expect(nextWeeklyAt(NAE, friday8pm).toISOString()).toBe("2026-07-04T00:00:00.000Z");
+  });
+
+  it("finds Friday from the day after (Saturday)", () => {
+    // 2026-06-20 is a Saturday, 10:00 EDT == 14:00 UTC. Next Friday is Jun 26.
+    const now = new Date("2026-06-20T14:00:00.000Z");
+    expect(nextWeeklyAt(NAE, now).toISOString()).toBe("2026-06-27T00:00:00.000Z");
+  });
+
+  it("regions resolve their own Friday-local 20:00 instant", () => {
+    const now = new Date("2026-06-22T14:00:00.000Z"); // Monday
+    expect(nextWeeklyAt(EU, now).toISOString()).toBe("2026-06-26T18:00:00.000Z"); // 8pm CEST Jun 26
+    expect(nextWeeklyAt(NAW, now).toISOString()).toBe("2026-06-27T03:00:00.000Z"); // 8pm PDT Jun 26
   });
 });
 

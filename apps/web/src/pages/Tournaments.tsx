@@ -117,7 +117,7 @@ function NightlyCardActions({ t, onRegister, registering }: {
   return <div className="flex justify-end">{detailLink("Details")}</div>;
 }
 
-/** Hero card for one region's nightly event: dual-timezone display rule —
+/** Hero card for one region's weekly event: dual-timezone display rule —
  *  always the REGION's local time, plus the viewer's local time when it
  *  differs (suppressed when the wall clocks match). */
 function NightlyCard({ t, region, onRegister, registering }: {
@@ -256,7 +256,7 @@ function SuccessBanner() {
   if (!params.get("tournament_id")) return null;
   return (
     <div className="bg-green-900/40 border border-green-700 rounded-xl p-4 mb-6">
-      <p className="text-green-300 font-medium">You're registered! See you tonight.</p>
+      <p className="text-green-300 font-medium">You're registered! See you Friday.</p>
     </div>
   );
 }
@@ -312,7 +312,7 @@ export default function Tournaments() {
   // Tonight's grid: the next not-yet-finished event per known region.
   // Rows without a recognized region (older data, or the API change not
   // deployed yet) never reach the hero grid — they stay in the list below.
-  const nightly = useMemo(() => {
+  const weekly = useMemo(() => {
     const next = new Map<TournamentRegion, Tournament>();
     const candidates = tournaments
       .filter(
@@ -331,7 +331,7 @@ export default function Tournaments() {
     });
   }, [tournaments]);
 
-  const nightlyIds = new Set(nightly.map(({ t }) => t.id));
+  const nightlyIds = new Set(weekly.map(({ t }) => t.id));
   const rest = tournaments.filter((t) => !nightlyIds.has(t.id));
 
   if (isLoading) {
@@ -340,21 +340,21 @@ export default function Tournaments() {
 
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-3xl font-bold text-white mb-1">Online Nightly Tournament Series</h1>
+      <h1 className="text-3xl font-bold text-white mb-1">Online Weekly Tournament Series</h1>
       <p className="text-gray-400 mb-6">
-        A free 32-player bracket in every region, every night at 8 PM local.
+        A free 16-player bracket every Friday at 8 PM Eastern.
       </p>
 
       <SuccessBanner />
 
       {/* Tonight's regional events */}
-      {nightly.length > 0 && (
+      {weekly.length > 0 && (
         <section className="mb-10">
           <h2 className="text-green-400 font-semibold text-sm uppercase tracking-wider mb-3">
-            Tonight — Free, Open to All
+            This Friday — Free, Open to All
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {nightly.map(({ region, t }) => (
+            {weekly.map(({ region, t }) => (
               <NightlyCard
                 key={t.id}
                 t={t}
@@ -371,7 +371,7 @@ export default function Tournaments() {
       {rest.length > 0 && (
         <section className="mb-8">
           <h2 className="text-gray-400 font-semibold text-sm uppercase tracking-wider mb-3">
-            {nightly.length > 0 ? "Other Tournaments" : "Tournaments"}
+            {weekly.length > 0 ? "Other Tournaments" : "Tournaments"}
           </h2>
           <div className="space-y-4">
             {rest.map((t) => (

@@ -25,7 +25,7 @@ SES (email — sandbox), Stripe (payments — dormant), GitHub Actions (CI/CD)
 
 - **Web** — React + Vite, React Query, Zustand, socket.io-client. Built to a
   static bundle, served from a private S3 bucket behind CloudFront
-  (randallsnightly.com). The client centers on a single nightly tournament
+  (onlineweeklytournaments.com). The client centers on a single nightly tournament
   (`/tournament`); public read, auth-gated actions.
 - **API** — Fastify (Node, TypeScript) in Docker on **one** Elastic Beanstalk
   instance. JWT auth (`@fastify/jwt`), rate limiting (Redis store), helmet.

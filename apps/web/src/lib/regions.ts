@@ -1,4 +1,4 @@
-// Region helper for Online Nightly Tournament Series.
+// Region helper for Online Weekly Tournament Series.
 //
 // The API is gaining a `region` field on tournaments ("EU" | "NA_EAST" |
 // "NA_WEST"); older rows have no region at all. Always run values through
@@ -13,7 +13,7 @@ export const REGIONS: Record<TournamentRegion, { label: string; tz: string }> = 
   NA_WEST: { label: "NA West", tz: "America/Los_Angeles" },
 };
 
-/** Display order for the nightly hero grid. */
+/** Display order for the weekly hero grid. */
 export const REGION_ORDER: TournamentRegion[] = ["EU", "NA_EAST", "NA_WEST"];
 
 export function isKnownRegion(value: unknown): value is TournamentRegion {

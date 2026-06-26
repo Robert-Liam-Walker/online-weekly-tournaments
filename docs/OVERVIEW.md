@@ -10,7 +10,7 @@ lives in the separate **FoxTrotMelee** repo.
   Socket.io, Docker on **one** Elastic Beanstalk instance. Web = React + Vite,
   React Query, Zustand, served from S3 behind CloudFront. CI/CD = GitHub Actions
   (push to `main` → deploy-api to ECR/EB and deploy-web to S3 + CloudFront).
-- **Live:** https://randallsnightly.com. Push to `main` auto-deploys prod; red CI
+- **Live:** https://onlineweeklytournaments.com. Push to `main` auto-deploys prod; red CI
   = real failure (no silent rollbacks).
 
 ## Local dev / preview

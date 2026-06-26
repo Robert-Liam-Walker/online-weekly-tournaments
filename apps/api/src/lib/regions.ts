@@ -1,5 +1,5 @@
-// Nightly-regional regions: single source of truth for display names and
-// IANA timezones. The Region enum values mirror prisma/schema.prisma.
+// Regions: single source of truth for display names and IANA timezones.
+// The Region enum values mirror prisma/schema.prisma.
 
 export type RegionCode = "EU" | "NA_EAST" | "NA_WEST";
 
@@ -17,8 +17,11 @@ export const REGIONS: RegionInfo[] = [
   { code: "NA_WEST", label: "NA West", tz: "America/Los_Angeles" },
 ];
 
-/** Nightly start hour, in each region's local wall-clock time. */
-export const NIGHTLY_LOCAL_HOUR = 20;
+/** Weekly start hour, in each region's local wall-clock time. */
+export const WEEKLY_LOCAL_HOUR = 20;
+
+/** Day of week the weekly series runs (0=Sunday .. 5=Friday .. 6=Saturday). */
+export const WEEKLY_DOW = 5; // Friday
 
 // ---------------------------------------------------------------------------
 // Zero-dependency, DST-correct timezone math via Intl.
@@ -92,21 +95,31 @@ export function utcInstantForWallClock(
 }
 
 /**
- * The next NIGHTLY_LOCAL_HOUR:00 in the region that is strictly in the
- * future relative to `now`: tonight's if it hasn't happened yet, else
- * tomorrow's. DST-correct.
+ * The next WEEKLY_DOW (Friday) at WEEKLY_LOCAL_HOUR:00 in the region that is
+ * strictly in the future relative to `now`: this Friday if it hasn't happened
+ * yet, else next Friday. DST-correct.
+ *
+ * The region-local day of week is read off the local calendar date — weekday
+ * is a property of the calendar date, so Date.UTC(y, m-1, d).getUTCDay() is
+ * the region-local weekday regardless of the tz's offset.
  */
-export function nextNightAt(region: RegionInfo, now: Date = new Date()): Date {
+export function nextWeeklyAt(region: RegionInfo, now: Date = new Date()): Date {
   const { y, m, d } = localDateParts(now, region.tz);
-  let candidate = utcInstantForWallClock(region.tz, y, m, d, NIGHTLY_LOCAL_HOUR);
-  if (candidate.getTime() <= now.getTime()) {
-    // Tomorrow in region-local terms: advance the local calendar date by one
-    // (Date.UTC normalizes month/year overflow).
-    const next = new Date(Date.UTC(y, m - 1, d + 1, 12)); // noon avoids edge ambiguity
-    const nd = localDateParts(next, "UTC");
-    candidate = utcInstantForWallClock(region.tz, nd.y, nd.m, nd.d, NIGHTLY_LOCAL_HOUR);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  let offset = (WEEKLY_DOW - dow + 7) % 7; // 0 when today is already Friday
+  // Two passes at most: this Friday, then (if 8pm already passed) next Friday.
+  for (let i = 0; i < 2; i++) {
+    // Advance the local calendar date by `offset` days; Date.UTC normalizes
+    // month/year overflow. Noon avoids any DST edge ambiguity in the readback.
+    const base = new Date(Date.UTC(y, m - 1, d + offset, 12));
+    const bd = localDateParts(base, "UTC");
+    const candidate = utcInstantForWallClock(region.tz, bd.y, bd.m, bd.d, WEEKLY_LOCAL_HOUR);
+    if (candidate.getTime() > now.getTime()) return candidate;
+    offset += 7;
   }
-  return candidate;
+  // Unreachable: the second pass is always > now. Satisfy the type checker.
+  const bd = localDateParts(new Date(Date.UTC(y, m - 1, d + offset, 12)), "UTC");
+  return utcInstantForWallClock(region.tz, bd.y, bd.m, bd.d, WEEKLY_LOCAL_HOUR);
 }
 
 /** Region-local "Jun 13"-style date label for an instant. */

@@ -68,7 +68,7 @@ export interface Tournament {
   maxEntrants: number;
   entryFee: number; // cents; 0 = free
   prizePool: number; // cents accumulated
-  // "EU" | "NA_EAST" | "NA_WEST" on nightly events; absent on older rows.
+  // "EU" | "NA_EAST" | "NA_WEST" on weekly events; absent on older rows.
   // Typed as string and narrowed via isKnownRegion() in lib/regions.ts so
   // unexpected server values degrade to the generic list instead of lying.
   region?: string;

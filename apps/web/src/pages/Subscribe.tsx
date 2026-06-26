@@ -38,7 +38,7 @@ export default function Subscribe() {
           <div className="text-5xl mb-4">🎮</div>
           <h1 className="text-3xl font-bold text-white mb-3">You're subscribed!</h1>
           <p className="text-gray-400 mb-6">
-            Welcome to the Online Nightly Tournament Series. You now have full access to the nightly tournaments.
+            Welcome to the Online Weekly Tournament Series. You now have full access to the weekly tournaments.
           </p>
           <Link
             to="/tournament"
@@ -74,7 +74,7 @@ export default function Subscribe() {
     <div className="max-w-lg mx-auto p-6">
       <h1 className="text-3xl font-bold text-white mb-2">Subscriptions — coming soon</h1>
       <p className="text-gray-400 mb-8">
-        The nightly tournaments are free for everyone while we launch.
+        The weekly tournaments are free for everyone while we launch.
       </p>
 
       <div className="bg-gray-800 rounded-xl p-6 mb-6">
@@ -119,9 +119,9 @@ export default function Subscribe() {
         ) : (
           <>
             <p className="text-gray-400 text-sm bg-gray-900/60 rounded-lg px-3 py-2.5">
-              Checkout isn't open yet. For now, every nightly tournament is free —{" "}
+              Checkout isn't open yet. For now, every weekly tournament is free —{" "}
               <Link to="/tournament" className="text-blue-400 hover:text-blue-300 underline">
-                grab a spot in tonight's bracket
+                grab a spot in this Friday's bracket
               </Link>
               .
             </p>

@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate } from "re
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Tournaments from "./pages/Tournaments";
 import TournamentDetail from "./pages/TournamentDetail";
-import NightlyTournament from "./pages/NightlyTournament";
+import WeeklyTournament from "./pages/WeeklyTournament";
 import Device from "./pages/Device";
 import Login from "./pages/Login";
 import Series from "./pages/Series";
@@ -38,7 +38,7 @@ function Nav() {
   return (
     <nav className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center gap-2">
       <RandallIcon size={22} />
-      <span className="text-white font-bold text-lg mr-4 ml-1.5">Online Nightly Tournament Series</span>
+      <span className="text-white font-bold text-lg mr-4 ml-1.5">Online Weekly Tournament Series</span>
       <NavLink to="/tournament" className={linkClass}>Tournament</NavLink>
       <NavLink to="/download" className={linkClass}>Download</NavLink>
       <NavLink to="/about" className={linkClass}>About</NavLink>
@@ -84,11 +84,11 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           {/* No sign-in wall: every visitor (signed in or not) lands on the
-              single nightly tournament at /tournament. The bracket is public;
+              single weekly tournament at /tournament. The bracket is public;
               auth-only actions prompt login. Download shares the same header
               so visitors can move between the two. */}
           <Route path="/" element={<Navigate to="/tournament" replace />} />
-          <Route path="/tournament" element={<Layout><NightlyTournament /></Layout>} />
+          <Route path="/tournament" element={<Layout><WeeklyTournament /></Layout>} />
           {/* Secondary: view a specific event by id (admin tools, deep links). */}
           <Route path="/tournaments/:id" element={<Layout><TournamentDetail /></Layout>} />
           <Route path="/download" element={<Layout><Download /></Layout>} />

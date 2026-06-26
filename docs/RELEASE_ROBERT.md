@@ -41,8 +41,8 @@ promote — these are the templates, with `<id>` = the release id and
 - **S3 bucket:** `https://s3.console.aws.amazon.com/s3/buckets/<RELEASE_S3_BUCKET>?region=us-east-1&prefix=manifests/`
 - **Snapshot:** `https://s3.console.aws.amazon.com/s3/object/<RELEASE_S3_BUCKET>?region=us-east-1&prefix=manifests/releases/<id>.json`
 - **Stable pointer:** `…&prefix=manifests/channels/stable.json` · **Candidate pointer:** `…&prefix=manifests/channels/candidate.json`
-- **Live manifest (public / stable):** https://randallsnightly.com/api/launcher/manifest
-- **Live manifest (candidate):** https://randallsnightly.com/api/launcher/manifest?channel=candidate
+- **Live manifest (public / stable):** https://onlineweeklytournaments.com/api/launcher/manifest
+- **Live manifest (candidate):** https://onlineweeklytournaments.com/api/launcher/manifest?channel=candidate
 - **Dolphin + gamefiles releases:** https://github.com/Robert-Liam-Walker/randalls-dolphin/releases
 - **Launcher releases:** https://github.com/Robert-Liam-Walker/randalls-launcher/releases
 

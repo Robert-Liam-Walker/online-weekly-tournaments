@@ -7,12 +7,12 @@ export default function About() {
           <h1 className="text-3xl font-bold text-white mb-6">About</h1>
           <div className="bg-gray-800 rounded-xl p-6">
             <p className="text-gray-300 leading-relaxed">
-              Online Nightly Tournament Series is a daily (nightly) repeating tournament series,
-              fully online. No sign-up required, no messing with start.gg and managing Discord,
-              messaging people to start the match, or stage striking on a website. It's all in
-              Dolphin, like Slippi. The website is just an added bonus. Download the Dolphin
-              package, click A to register, and you're in when the tournament starts. Can't
-              play tonight? Join us tomorrow!
+              Online Weekly Tournament Series is a weekly repeating tournament series, every
+              Friday at 8PM Eastern, fully online. No sign-up required, no messing with start.gg
+              and managing Discord, messaging people to start the match, or stage striking on a
+              website. It's all in Dolphin, like Slippi. The website is just an added bonus.
+              Download the Dolphin package, click A to register, and you're in when the
+              tournament starts. Can't play this Friday? Join us next week!
             </p>
           </div>
         </section>

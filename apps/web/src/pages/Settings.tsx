@@ -94,7 +94,7 @@ export default function Settings() {
         <div className="bg-gray-800 rounded-xl p-6 mb-4">
           <h2 className="text-white font-semibold mb-1">Slippi Replays Folder</h2>
           <p className="text-gray-400 text-sm mb-4">
-            Connect your Slippi replays folder and Online Nightly Tournament Series will automatically detect game results during a series — no uploads needed.
+            Connect your Slippi replays folder and Online Weekly Tournament Series will automatically detect game results during a series — no uploads needed.
           </p>
           {folderName ? (
             <div className="flex items-center gap-4">
@@ -173,7 +173,7 @@ export default function Settings() {
           // Free-only release: Stripe dormant, no upgrade CTA. The $5/mo
           // subscription (ranked mode + more) ships as step 2.
           <p className="text-gray-400 text-sm">
-            Subscriptions are coming soon. Nightly tournaments are free for
+            Subscriptions are coming soon. Weekly tournaments are free for
             everyone while we launch.
           </p>
         )}

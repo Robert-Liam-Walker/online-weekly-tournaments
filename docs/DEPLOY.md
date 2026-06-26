@@ -314,17 +314,17 @@ Web build-time URLs in this setup:
 
 | Thing | Value |
 |---|---|
-| Domain | `randallsnightly.com` (Route53-registered, privacy on, auto-renew; hosted zone `Z03490391XST8MEOGEUVZ`) |
-| ACM cert (us-east-1) | `arn:aws:acm:...:826671498662:certificate/23d2589e-78d7-47a3-a676-24b51fe9856f` — `randallsnightly.com` + `*.randallsnightly.com`, ISSUED |
+| Domain | `onlineweeklytournaments.com` (Route53-registered, privacy on, auto-renew; hosted zone `Z03490391XST8MEOGEUVZ`) |
+| ACM cert (us-east-1) | `arn:aws:acm:...:826671498662:certificate/23d2589e-78d7-47a3-a676-24b51fe9856f` — `onlineweeklytournaments.com` + `*.onlineweeklytournaments.com`, ISSUED |
 | CloudFront distribution | `E2J2AGBK1BOAMP` (`d3kbmthjr8ssji.cloudfront.net`); aliases apex + `www`; HTTP/2+3; PriceClass_100 |
 | SPA rewrite | CloudFront Function `randallsnightly-spa-rewrite` (viewer-request, default behavior only) |
 | S3 web origin | `foxtrot-web-826671498662` via OAC `E3VY7642M14Z6R`; bucket policy is CloudFront-only, public access fully blocked (the old S3 static-website URL is dead — intentional) |
 | EB origin | `foxtrot-api-prod.eba-npsz5ez5.us-east-1.elasticbeanstalk.com`, http-only, behaviors `/api/*`, `/socket.io/*`, `/health` (CachingDisabled + AllViewerExceptHostHeader) |
 | DNS | A/AAAA aliases apex + www → the distribution; ACM validation CNAME; SES DKIM ×3 (verified); `_dmarc` TXT `p=none` |
-| SES | domain identity `randallsnightly.com` VERIFIED; `SES_FROM_EMAIL=no-reply@randallsnightly.com` on EB; production access REQUESTED 2026-06-12 (pending AWS review — sandbox limits recipients until then) |
-| EB env | `WEB_URL=https://randallsnightly.com` set 2026-06-12 |
-| GH Actions vars | `VITE_API_URL=https://randallsnightly.com/api`, `VITE_SOCKET_URL=https://randallsnightly.com`, `CLOUDFRONT_DISTRIBUTION_ID=E2J2AGBK1BOAMP` (deploy-web invalidates on every deploy) |
-| Match rendezvous (UDP) | Deploy bundle is **docker-compose** (EB compose mode: no managed nginx — the container publishes `80:3001` itself — and env properties arrive via the EB-generated `.env`). Ports `80:3001` + `41100:41100/udp`. EB env props `RENDEZVOUS_HOST=rdv.randallsnightly.com`, `RENDEZVOUS_UDP_PORT=41100` (HOST is what `/ready` advertises to clients; the socket binds 0.0.0.0). `rdv.randallsnightly.com` A → the single-instance EIP **directly** (CloudFront cannot proxy UDP — bypassed by design; if EB ever scales out, move the registrar to a dedicated instance or NLB-UDP). SG: UDP 41100 ingress from 0.0.0.0/0 on the EB instance SG. Registrar drops malformed/unknown packets silently (anti-reflector) — a from-outside preflight needs real `/ready` tokens; packet arrival shows in app logs as `rdv packet rejected` |
+| SES | domain identity `onlineweeklytournaments.com` VERIFIED; `SES_FROM_EMAIL=no-reply@onlineweeklytournaments.com` on EB; production access REQUESTED 2026-06-12 (pending AWS review — sandbox limits recipients until then) |
+| EB env | `WEB_URL=https://onlineweeklytournaments.com` set 2026-06-12 |
+| GH Actions vars | `VITE_API_URL=https://onlineweeklytournaments.com/api`, `VITE_SOCKET_URL=https://onlineweeklytournaments.com`, `CLOUDFRONT_DISTRIBUTION_ID=E2J2AGBK1BOAMP` (deploy-web invalidates on every deploy) |
+| Match rendezvous (UDP) | Deploy bundle is **docker-compose** (EB compose mode: no managed nginx — the container publishes `80:3001` itself — and env properties arrive via the EB-generated `.env`). Ports `80:3001` + `41100:41100/udp`. EB env props `RENDEZVOUS_HOST=rdv.onlineweeklytournaments.com`, `RENDEZVOUS_UDP_PORT=41100` (HOST is what `/ready` advertises to clients; the socket binds 0.0.0.0). `rdv.onlineweeklytournaments.com` A → the single-instance EIP **directly** (CloudFront cannot proxy UDP — bypassed by design; if EB ever scales out, move the registrar to a dedicated instance or NLB-UDP). SG: UDP 41100 ingress from 0.0.0.0/0 on the EB instance SG. Registrar drops malformed/unknown packets silently (anti-reflector) — a from-outside preflight needs real `/ready` tokens; packet arrival shows in app logs as `rdv packet rejected` |
 
 ## 8. GitHub Actions configuration
 

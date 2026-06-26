@@ -5,7 +5,7 @@
 // registrar -> complementary peer responses.
 //
 //   npx tsx scripts/preflight-prod-rendezvous.ts \
-//     --api https://randallsnightly.com/api \
+//     --api https://onlineweeklytournaments.com/api \
 //     --admin-email you@example.com --admin-pass secret \
 //     --second-email test+rdv@example.com --second-pass secret2
 //
@@ -23,7 +23,7 @@ const args: Args = {};
 for (let i = 2; i < process.argv.length; i += 2) {
   args[process.argv[i].replace(/^--/, "")] = process.argv[i + 1];
 }
-const API = args["api"] ?? "https://randallsnightly.com/api";
+const API = args["api"] ?? "https://onlineweeklytournaments.com/api";
 
 function fail(msg: string): never {
   console.error(`FAIL: ${msg}`);

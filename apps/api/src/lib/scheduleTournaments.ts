@@ -1,10 +1,10 @@
 import { prisma } from "./prisma";
 import { startTournament, sweepNoShows } from "./bracketService";
 import { emitTournamentUpdate } from "./tournamentEvents";
-import { REGIONS, nextNightAt, regionDateLabel } from "./regions";
+import { REGIONS, nextWeeklyAt, regionDateLabel } from "./regions";
 
 /**
- * Online Nightly Tournament Series: every night, ONE free United States event
+ * Online Weekly Tournament Series: every Friday, ONE free United States event
  * at 20:00 US-Eastern — DST-correct via lib/regions.ts. The series reuses
  * the NA_EAST region/timezone machinery (America/New_York). Events are
  * stored as absolute UTC instants; clients render series-local + viewer-
@@ -16,31 +16,31 @@ import { REGIONS, nextNightAt, regionDateLabel } from "./regions";
  * display helpers (e.g. regionDateLabel, region labels) for events that
  * still carry the NA_EAST region code.
  *
- * Idempotency: the scheduler computes the series' next 20:00-local instant
- * deterministically, so "(region, scheduledAt) already exists" is an
+ * Idempotency: the scheduler computes the series' next Friday 20:00-local
+ * instant deterministically, so "(region, scheduledAt) already exists" is an
  * exact-match check — re-runs and multi-instance races can only ever
  * find-or-create the same row. (No unique constraint needed; the worst race
  * outcome is a transient duplicate that the exact-match check prevents in
  * practice since the cron is single-instance today.)
  *
- * Release scope is FREE-ONLY (Stripe dormant): the nightly scheduler
+ * Release scope is FREE-ONLY (Stripe dormant): the weekly scheduler
  * creates no paid events at all. Paid creation remains possible only via
  * the admin route behind PAID_EVENTS_ENABLED.
  */
 
 /**
- * The single nightly series runs on US-Eastern. We reuse the existing
+ * The single weekly series runs on US-Eastern. We reuse the existing
  * NA_EAST region entry (America/New_York) so all region display helpers and
  * the stored Region enum value keep working unchanged.
  */
 const SERIES_REGION = REGIONS.find((r) => r.code === "NA_EAST")!;
 
-/** Name shown for the nightly event. Date/time are shown separately by the UI. */
-const SERIES_NAME = "Tonight's Tournament";
+/** Name shown for the weekly event. Date/time are shown separately by the UI. */
+const SERIES_NAME = "Online Weekly Tournament";
 
-export async function ensureNightlyTournaments(now: Date = new Date()) {
+export async function ensureWeeklyTournaments(now: Date = new Date()) {
   const region = SERIES_REGION;
-  const scheduledAt = nextNightAt(region, now);
+  const scheduledAt = nextWeeklyAt(region, now);
   const existing = await prisma.tournament.findFirst({
     where: { region: region.code, scheduledAt },
   });
@@ -51,7 +51,7 @@ export async function ensureNightlyTournaments(now: Date = new Date()) {
     data: {
       name: SERIES_NAME,
       description:
-        "Free entry, open to all. 16-player double elimination, best of 3. Check in within 30 minutes of start.",
+        "Free entry, open to all (US internet connection required). 16-player double elimination, best of 3. Check in within 15 minutes of start.",
       scheduledAt,
       region: region.code,
       format: "DOUBLE_ELIM",
@@ -66,8 +66,9 @@ export async function ensureNightlyTournaments(now: Date = new Date()) {
   );
 }
 
-/** Minutes past the scheduled start before an unstartable event cancels. */
-const START_GRACE_MINUTES = 30;
+/** Minutes past the scheduled start before an unstartable event cancels.
+ *  Matches the "check in within 15 minutes of start" promise in the event copy. */
+const START_GRACE_MINUTES = 15;
 
 /** Start (or, past the grace window, cancel) tournaments whose time arrived */
 export async function startDueTournaments() {
@@ -130,10 +131,10 @@ export async function sweepNoShowTournaments() {
   }
 }
 
-/** Boot + per-minute loop: ensure tonight's US series exists, start due
+/** Boot + per-minute loop: ensure this week's US series exists, start due
  *  tournaments (close check-in, generate brackets), auto-DQ no-shows. */
 export function startTournamentScheduler() {
-  ensureNightlyTournaments().catch(console.error);
+  ensureWeeklyTournaments().catch(console.error);
 
   // Plain interval loop, NOT node-cron: node-cron v4 computes fire times
   // from the OS timezone database, and the node:20-slim production image
@@ -151,7 +152,7 @@ export function startTournamentScheduler() {
     void (async () => {
       try {
         ticks++;
-        await ensureNightlyTournaments().catch(console.error); // cheap + idempotent
+        await ensureWeeklyTournaments().catch(console.error); // cheap + idempotent
         await startDueTournaments().catch(console.error);
         await sweepNoShowTournaments().catch(console.error);
         if (ticks % 60 === 0) {
@@ -164,6 +165,6 @@ export function startTournamentScheduler() {
   }, 60_000);
 
   console.log(
-    "[scheduler] Nightly scheduler started (1 US series/night at 20:00 US-Eastern; due-start + no-show sweep every minute)."
+    "[scheduler] Weekly scheduler started (1 US series every Friday at 20:00 US-Eastern; due-start + no-show sweep every minute)."
   );
 }

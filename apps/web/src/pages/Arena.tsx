@@ -89,7 +89,7 @@ export default function Arena() {
         // but we don't advertise checkout while Stripe is dormant.
         <div className="bg-yellow-900/40 border border-yellow-700 rounded-lg p-4 mb-6">
           <p className="text-yellow-300">
-            Arena challenges unlock with the upcoming subscription — coming soon. Nightly
+            Arena challenges unlock with the upcoming subscription — coming soon. Weekly
             tournaments are free for everyone in the meantime.
           </p>
         </div>

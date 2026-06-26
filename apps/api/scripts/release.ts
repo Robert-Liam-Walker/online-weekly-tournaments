@@ -15,7 +15,7 @@
  * Env config for the printed links (so they're correct per deployment):
  *   RELEASE_S3_BUCKET                             (where manifests live; store is OFF until set)
  *   S3_REGION | AWS_REGION                        (default us-east-1)
- *   RELEASE_API_BASE | WEB_URL                    (default https://randallsnightly.com)
+ *   RELEASE_API_BASE | WEB_URL                    (default https://onlineweeklytournaments.com)
  *   RELEASE_GH_OWNER                              (default Robert-Liam-Walker)
  */
 import {
@@ -32,7 +32,7 @@ const REGION = process.env.S3_REGION || process.env.AWS_REGION || "us-east-1";
 const API_BASE = (
   process.env.RELEASE_API_BASE ||
   process.env.WEB_URL ||
-  "https://randallsnightly.com"
+  "https://onlineweeklytournaments.com"
 ).replace(/\/+$/, "");
 const GH_OWNER = process.env.RELEASE_GH_OWNER || "Robert-Liam-Walker";
 

@@ -20,8 +20,8 @@ export default function Terms() {
 
         <Section title="What this service is">
           <p>
-            Online Nightly Tournament Series is a free, hobby-run platform for
-            nightly Super Smash Bros. Melee tournaments played over Slippi
+            Online Weekly Tournament Series is a free, hobby-run platform for
+            weekly Super Smash Bros. Melee tournaments played over Slippi
             rollback netplay. There is no entry fee, no prize money, and no
             paid tier at this time. By creating an account or playing in a
             bracket you agree to these terms.
@@ -56,7 +56,7 @@ export default function Terms() {
         <Section title="The game itself">
           <p>
             You must own a legally obtained copy of Super Smash Bros. Melee.
-            We do not distribute the game or any Nintendo property. Nightly
+            We do not distribute the game or any Nintendo property. Weekly
             Tournaments is not affiliated with, endorsed by, or
             connected to Nintendo or the Slippi team.
           </p>
