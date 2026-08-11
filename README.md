@@ -1,7 +1,7 @@
 # Online Weekly Tournament Series
 
-A free, fully-online Super Smash Bros. Melee tournament that runs **inside the game**
-— every Friday at 8PM Eastern.
+A free, fully-online Super Smash Bros. Melee tournament that runs **inside the game**,
+every Friday at 8PM Eastern.
 
 No start.gg. No Discord wrangling. No messaging your opponent to start the set. You
 launch Melee, press A to register, and the bracket runs itself: pairing, stage
@@ -9,8 +9,8 @@ striking, result reporting, and advancement all happen in-game.
 
 **Live:** [onlineweeklytournaments.com](https://onlineweeklytournaments.com)
 
-This repo is the **backend and website**. The game client — a Slippi Dolphin fork with
-the in-game tournament scenes — lives in
+This repo is the **backend and website**. The game client (a Slippi Dolphin fork with
+the in-game tournament scenes) lives in
 [`online-weekly-tournaments-melee`](https://github.com/Robert-Liam-Walker/online-weekly-tournaments-melee).
 
 ---
@@ -23,14 +23,14 @@ without them, and it's worth being precise about which part is whose:
 
 | | |
 |---|---|
-| **The client repo is a fork.** | [`online-weekly-tournaments-melee`](https://github.com/Robert-Liam-Walker/online-weekly-tournaments-melee) vendors forks of four Slippi projects — Ishiiruka (the emulator), `slippi-ssbm-asm`, `slippi-ssbm-c`, and the launcher. All emulation and all rollback netcode is inherited from them, unmodified. It stays GPL. |
+| **The client repo is a fork.** | [`online-weekly-tournaments-melee`](https://github.com/Robert-Liam-Walker/online-weekly-tournaments-melee) vendors forks of four Slippi projects: Ishiiruka (the emulator), `slippi-ssbm-asm`, `slippi-ssbm-c`, and the launcher. All emulation and all rollback netcode is inherited from them, unmodified. It stays GPL. |
 | **This repo is not a fork.** | The API, website, and bracket engine are original code with no vendored upstream source. Its one Slippi dependency is the npm package [`@slippi/slippi-js`](https://github.com/project-slippi/slippi-js), used to parse `.slp` replay files. |
 
 What this repo *does* replace is Slippi's **matchmaking server**. Slippi's netcode is
 open source but its matchmaking service is not, so the UDP rendezvous registrar here
 (§ [How the system fits together](#how-the-system-fits-together)) is an independent
 reimplementation of that role: it pairs the two players of a bracket match and swaps
-their public endpoints. `mm.slippi.gg` is never contacted — both end-to-end gates were
+their public endpoints. `mm.slippi.gg` is never contacted, and both end-to-end gates were
 run with it blocked in `hosts` to prove it. Once paired, the match runs on Slippi's
 own rollback netcode, peer-to-peer.
 
@@ -46,11 +46,11 @@ from the client, not mockups.
 | | |
 |:--:|:--:|
 | <img src="docs/images/online-play.png" alt="Melee 1-P menu with Online Play highlighted" width="100%"> | <img src="docs/images/bracket-winners.png" alt="In-game winners bracket" width="100%"> |
-| **1. Open Online Play** — straight into tonight's tournament, no sign-in. | **2a. The winners bracket** — press Y for the full double-elim bracket. |
+| **1. Open Online Play.** Straight into tonight's tournament, no sign-in. | **2a. The winners bracket.** Press Y for the full double-elim bracket. |
 | <img src="docs/images/bracket-losers.png" alt="In-game losers bracket" width="100%"> | <img src="docs/images/character-select.png" alt="Melee character select showing the player's tournament name" width="100%"> |
-| **2b. Losers bracket** — press Down to flip sides and fight back. | **3. Character select** — no rank, no clutter, your tournament name above it. |
+| **2b. Losers bracket.** Press Down to flip sides and fight back. | **3. Character select.** No rank, no clutter, your tournament name above it. |
 | <img src="docs/images/stage-strike.png" alt="In-game stage striking screen" width="100%"> | <img src="docs/images/match.png" alt="A live Melee match on Slippi rollback netcode" width="100%"> |
-| **4. Strike for stage** — loser of each game counterpicks the next. | **5. Play your set** — Slippi rollback; the result reports itself. |
+| **4. Strike for stage.** Loser of each game counterpicks the next. | **5. Play your set.** Slippi rollback, and the result reports itself. |
 
 That bracket is drawn by the game, from this API's data. When a set ends, Slippi's
 authoritative result is sent back over EXI and the bracket advances on its own.
@@ -77,8 +77,8 @@ authoritative result is sent back over EXI and the bracket advances on its own.
 
 Two independent transports:
 
-- **Control plane** — REST and websockets ride HTTPS through CloudFront to Fastify.
-- **Match plane** — the UDP rendezvous can't traverse CloudFront, so clients hit the
+- **Control plane:** REST and websockets ride HTTPS through CloudFront to Fastify.
+- **Match plane:** the UDP rendezvous can't traverse CloudFront, so clients hit the
   registrar directly. Once it has swapped the two players' public endpoints, the
   actual game traffic is **peer-to-peer** and never touches our servers.
 
@@ -97,7 +97,7 @@ A workspace monorepo. Three workspaces share the bracket engine.
 │   ├── schema.prisma          single source of truth for the data model
 │   └── migrations/            `prisma migrate deploy` runs these on boot
 ├── packages/
-│   └── shared/                @foxtrot/shared — pure, no IO
+│   └── shared/                @foxtrot/shared (pure, no IO)
 │       └── src/bracket.ts     the double-elimination engine
 ├── apps/
 │   ├── api/                   Fastify backend
@@ -111,10 +111,10 @@ A workspace monorepo. Three workspaces share the bracket engine.
 │   │           └── scheduleTournaments.ts
 │   └── web/                   React + Vite SPA
 └── docs/
-    └── ARCHITECTURE.md        the full system map — start here
+    └── ARCHITECTURE.md        the full system map, start here
 ```
 
-**The hard rule:** `packages/shared` is pure — no Prisma, no Redis, no `fetch`. That is
+**The hard rule:** `packages/shared` is pure: no Prisma, no Redis, no `fetch`. That is
 what lets the bracket engine be unit-tested exhaustively and reused identically
 everywhere else.
 
@@ -136,8 +136,8 @@ every mutation  =  rebuild → mutate → persist
 Because that's a read-modify-write, every mutation runs under a per-tournament Redis
 mutex. Recorded results that don't replay cleanly throw rather than silently diverge.
 
-Internally the bracket is a **dataflow graph** — each slot is either a seed, the winner
-of another match, or the loser of another match — and `propagate()` is a fixpoint loop
+Internally the bracket is a **dataflow graph** (each slot is either a seed, the winner
+of another match, or the loser of another match), and `propagate()` is a fixpoint loop
 that resolves slots and auto-completes byes until nothing changes. Byes are how
 check-in no-shows are handled for free.
 
@@ -153,7 +153,7 @@ Match keys are stable strings every layer references: `W1-3`, `L4-1`, `GF`, `GFR
 | Realtime | Socket.io, sharing Fastify's HTTP server (one port) |
 | Pairing | `dgram` UDP registrar, Redis-backed state machine |
 | Database | PostgreSQL 16 via Prisma |
-| Cache / coordination | Redis — presence, rate limits, rendezvous, per-tournament locks |
+| Cache / coordination | Redis: presence, rate limits, rendezvous, per-tournament locks |
 | Web | React 18, Vite, Tailwind, TanStack Query, Zustand |
 | Infra | Elastic Beanstalk (Docker), RDS, ElastiCache, S3 + CloudFront, SES |
 | CI/CD | GitHub Actions → ECR/EB (api), S3 + CloudFront invalidation (web) |
@@ -185,7 +185,7 @@ npm test --workspace=packages/shared    # bracket engine
 npm test --workspace=apps/api           # API unit tests
 ```
 
-The UDP registrar is **opt-in** — it only binds when `RENDEZVOUS_UDP_PORT` is set, so
+The UDP registrar is **opt-in**: it only binds when `RENDEZVOUS_UDP_PORT` is set, so
 local dev and parallel test runs never fight over the socket.
 
 ---
@@ -208,14 +208,14 @@ local dev and parallel test runs never fight over the socket.
 This is a working MVP running real weekly events, with deliberate gaps. The honest
 list, kept current in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §17:
 
-- **Availability** — API, websockets, UDP registrar, and scheduler are all one process
+- **Availability:** API, websockets, UDP registrar, and scheduler are all one process
   on a single instance. Simple and cheap; also a single point of failure. Scaling out
   needs the Socket.io Redis adapter, sticky sessions, and an NLB for UDP.
-- **Integrity** — result reporting is participant-trust in v1. Replay verification
+- **Integrity:** result reporting is participant-trust in v1. Replay verification
   flags mismatches but is not yet authoritative.
-- **Observability** — no error tracking, metrics, or alerting yet. The scheduler
+- **Observability:** no error tracking, metrics, or alerting yet. The scheduler
   heartbeat log is the only liveness signal.
-- **Environments** — no staging; `main` deploys straight to production.
+- **Environments:** no staging; `main` deploys straight to production.
 
 ---
 

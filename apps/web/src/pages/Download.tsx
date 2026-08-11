@@ -10,8 +10,8 @@
 //
 // GPL: the client is built from GPL sources (Dolphin/Ishiiruka GPL-2.0+, the
 // game-side Slippi trees GPL-3.0), so distributing this binary obliges us to
-// point recipients at the corresponding source. SOURCE_URL below is that offer —
-// do not remove it, and keep it pointing at the repo the shipped build came from.
+// point recipients at the corresponding source. SOURCE_URL below is that offer.
+// Do not remove it, and keep it pointing at the repo the shipped build came from.
 
 import PublicFooter from "../components/PublicFooter";
 

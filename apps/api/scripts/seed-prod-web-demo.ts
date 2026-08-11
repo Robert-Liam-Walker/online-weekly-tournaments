@@ -19,12 +19,16 @@ import "dotenv/config"; // load apps/api/.env when run standalone (run from apps
 //
 // NOTE: run with READY_TIMEOUT_MINUTES=0 on the target env, or the no-show
 // sweep will DQ the idle demo players 10 minutes after start.
-// Demo users share DEMO_PASSWORD below — delete these accounts before launch.
+// Demo users all share SEED_DEMO_PASSWORD. Delete these accounts before launch.
 
 const API = process.env.SEED_API_URL ?? "https://onlineweeklytournaments.com/api";
 const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? "robert.liam.walker@gmail.com";
 const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD;
-const DEMO_PASSWORD = "***REMOVED***";
+const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD;
+if (!DEMO_PASSWORD) {
+  console.error("SEED_DEMO_PASSWORD is required (no default). Set it and re-run.");
+  process.exit(1);
+}
 const NAME = "Randalls 32 Demo";
 const TAG = "demo32";
 const AUTH_PACE_MS = 7000;

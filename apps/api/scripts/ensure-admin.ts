@@ -1,18 +1,23 @@
 // Ensure an ADMIN web account exists with a known username + password.
 // Idempotent: upserts by username, (re)sets the password hash and ADMIN role.
 //
-// Defaults create `admin` / `***REMOVED***`. Override via env:
-//   ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_LOGIN_EMAIL
+// ADMIN_PASSWORD is REQUIRED and has no default: this script is run against
+// production, so a fallback value would become the live admin credential.
+// Optional: ADMIN_USERNAME, ADMIN_LOGIN_EMAIL.
 //
-// Local:  npx -w apps/api tsx scripts/ensure-admin.ts
-// Prod:   no source in the container — use the inline `node -e` SSM recipe
+// Local:  ADMIN_PASSWORD=... npx -w apps/api tsx scripts/ensure-admin.ts
+// Prod:   no source in the container, use the inline `node -e` SSM recipe
 //         (see docs/DEPLOY.md); this script documents the same effect.
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/lib/prisma";
 
 async function main() {
   const username = process.env.ADMIN_USERNAME ?? "admin";
-  const password = process.env.ADMIN_PASSWORD ?? "***REMOVED***";
+  const password = process.env.ADMIN_PASSWORD;
+  if (!password) {
+    console.error("ADMIN_PASSWORD is required (no default). Set it and re-run.");
+    process.exit(1);
+  }
   const email = process.env.ADMIN_LOGIN_EMAIL ?? "admin@nightlytournament.service";
   const passwordHash = await bcrypt.hash(password, 12);
 
