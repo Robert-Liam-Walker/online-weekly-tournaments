@@ -38,7 +38,30 @@ own rollback netcode, peer-to-peer.
 
 ---
 
-## What players see
+## The website
+
+The companion site is deliberately thin. There is no sign-in wall: anyone can read the
+bracket and grab the client. Registering and playing happen inside the game.
+
+<p align="center">
+  <img src="docs/images/web-tournament.png" alt="The tournament page showing the live double-elimination bracket" width="100%">
+</p>
+
+`/tournament` is the whole site's center of gravity: one event, its entrant list, and
+the full double-elimination bracket rendered live from the same API the game reads.
+Empty slots show as TBD until the bracket is seeded at start time.
+
+<p align="center">
+  <img src="docs/images/web-download.png" alt="The download page with the Windows zip and setup steps" width="100%">
+</p>
+
+`/download` is the funnel. One portable `.zip`, four steps, no launcher and no
+installer. You point it at a Melee ISO you already own and the game handles login by
+opening the approval page in your browser on first boot.
+
+---
+
+## Inside the game
 
 The entire tournament UX is rendered inside Melee itself. These are real screenshots
 from the client, not mockups.
