@@ -4,14 +4,22 @@
 // play. Login is automatic on first boot (the game opens the browser approval
 // page) — no launcher, no separate sign-in app.
 //
-// NOTE: the source repos are private, so the .zip is hosted on a public S3
-// bucket (nts-downloads-826671498662) rather than GitHub release assets.
-// Replace the object in that bucket to ship a new build (same URL, no code bump).
+// NOTE: the .zip is hosted on a public S3 bucket (nts-downloads-826671498662)
+// rather than GitHub release assets. Replace the object in that bucket to ship a
+// new build (same URL, no code bump).
+//
+// GPL: the client is built from GPL sources (Dolphin/Ishiiruka GPL-2.0+, the
+// game-side Slippi trees GPL-3.0), so distributing this binary obliges us to
+// point recipients at the corresponding source. SOURCE_URL below is that offer —
+// do not remove it, and keep it pointing at the repo the shipped build came from.
 
 import PublicFooter from "../components/PublicFooter";
 
 const ZIP_URL =
   "https://nts-downloads-826671498662.s3.amazonaws.com/Online-Weekly-Tournament-Series-Win.zip";
+
+const SOURCE_URL =
+  "https://github.com/Robert-Liam-Walker/online-weekly-tournaments-melee";
 
 const STEPS: Array<{ title: string; body: string }> = [
   {
@@ -66,6 +74,29 @@ export default function Download() {
       <p className="text-gray-600 text-xs text-center mt-10">
         You must own a legally obtained copy of Super Smash Bros. Melee. Weekly
         Tournaments is not affiliated with Nintendo or the Slippi team.
+      </p>
+
+      <p className="text-gray-600 text-xs text-center mt-3">
+        The client is a fork of{" "}
+        <a
+          href="https://slippi.gg"
+          target="_blank"
+          rel="noreferrer"
+          className="underline hover:text-gray-400"
+        >
+          Project Slippi
+        </a>{" "}
+        and the Dolphin emulator, distributed under the GNU GPL. Complete
+        corresponding source is available at{" "}
+        <a
+          href={SOURCE_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="underline hover:text-gray-400"
+        >
+          github.com/Robert-Liam-Walker/online-weekly-tournaments-melee
+        </a>
+        .
       </p>
       </div>
       <PublicFooter />
