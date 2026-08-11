@@ -15,6 +15,29 @@ the in-game tournament scenes — lives in
 
 ---
 
+## Built on Project Slippi
+
+This project is built on top of [Project Slippi](https://slippi.gg), which is itself
+built on the [Dolphin emulator](https://dolphin-emu.org). Nothing here would work
+without them, and it's worth being precise about which part is whose:
+
+| | |
+|---|---|
+| **The client repo is a fork.** | [`online-weekly-tournaments-melee`](https://github.com/Robert-Liam-Walker/online-weekly-tournaments-melee) vendors forks of four Slippi projects — Ishiiruka (the emulator), `slippi-ssbm-asm`, `slippi-ssbm-c`, and the launcher. All emulation and all rollback netcode is inherited from them, unmodified. It stays GPL. |
+| **This repo is not a fork.** | The API, website, and bracket engine are original code with no vendored upstream source. Its one Slippi dependency is the npm package [`@slippi/slippi-js`](https://github.com/project-slippi/slippi-js), used to parse `.slp` replay files. |
+
+What this repo *does* replace is Slippi's **matchmaking server**. Slippi's netcode is
+open source but its matchmaking service is not, so the UDP rendezvous registrar here
+(§ [How the system fits together](#how-the-system-fits-together)) is an independent
+reimplementation of that role: it pairs the two players of a bracket match and swaps
+their public endpoints. `mm.slippi.gg` is never contacted — both end-to-end gates were
+run with it blocked in `hosts` to prove it. Once paired, the match runs on Slippi's
+own rollback netcode, peer-to-peer.
+
+**This project is not affiliated with or endorsed by Project Slippi or Nintendo.**
+
+---
+
 ## What players see
 
 The entire tournament UX is rendered inside Melee itself. These are real screenshots
