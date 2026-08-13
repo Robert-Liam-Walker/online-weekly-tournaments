@@ -9,6 +9,7 @@ import Series from "./pages/Series";
 import Subscribe from "./pages/Subscribe";
 import Download from "./pages/Download";
 import About from "./pages/About";
+import Gameplay from "./pages/Gameplay";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
@@ -41,6 +42,7 @@ function Nav() {
       <span className="text-white font-bold text-lg mr-4 ml-1.5">Online Weekly Tournament Series</span>
       <NavLink to="/tournament" className={linkClass}>Tournament</NavLink>
       <NavLink to="/download" className={linkClass}>Download</NavLink>
+      <NavLink to="/gameplay" className={linkClass}>How to Play</NavLink>
       <NavLink to="/about" className={linkClass}>About</NavLink>
       {user?.role === "ADMIN" && (
         <NavLink to="/admin" className={linkClass}>Admin</NavLink>
@@ -92,6 +94,7 @@ export default function App() {
           {/* Secondary: view a specific event by id (admin tools, deep links). */}
           <Route path="/tournaments/:id" element={<Layout><TournamentDetail /></Layout>} />
           <Route path="/download" element={<Layout><Download /></Layout>} />
+          <Route path="/gameplay" element={<Layout><Gameplay /></Layout>} />
           <Route path="/about" element={<Layout><About /></Layout>} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />

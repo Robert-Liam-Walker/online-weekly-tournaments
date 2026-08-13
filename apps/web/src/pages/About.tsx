@@ -1,67 +1,32 @@
+// Public About page — what the series is, the ruleset, and where the source
+// lives. The in-game walkthrough moved to its own tab (see pages/Gameplay.tsx).
+//
+// GPL: WEB_REPO_URL/CLIENT_REPO_URL below are also the written offer of source
+// for the shipped client (see pages/Download.tsx). Keep CLIENT_REPO_URL pointing
+// at the repo the shipped build came from.
+
+const WEB_REPO_URL = "https://github.com/Robert-Liam-Walker/online-weekly-tournaments";
+
+const CLIENT_REPO_URL =
+  "https://github.com/Robert-Liam-Walker/online-weekly-tournaments-melee";
+
+const REPOS: Array<{ name: string; url: string; text: string }> = [
+  {
+    name: "online-weekly-tournaments",
+    url: WEB_REPO_URL,
+    text: "This website and the API behind it — brackets, matchmaking, accounts, and the weekly scheduler.",
+  },
+  {
+    name: "online-weekly-tournaments-melee",
+    url: CLIENT_REPO_URL,
+    text: "The game client: a fork of Project Slippi and the Dolphin emulator with the in-game tournament flow built in.",
+  },
+];
+
 export default function About() {
   return (
     <div className="max-w-6xl mx-auto p-6">
       <div className="space-y-10">
-        {/* Top: How to Play */}
-        <section>
-          <h1 className="text-3xl font-bold text-white mb-6">How to Play</h1>
-          <ol className="grid sm:grid-cols-2 gap-6 items-start">
-            {[
-              {
-                num: "1",
-                img: "/gameplay/2.png",
-                title: "Open Online Play",
-                text: "From the main menu, choose Online Play to drop straight into tonight's tournament — no sign-in, no start.gg.",
-              },
-              {
-                num: "2a",
-                img: "/gameplay/3.png",
-                title: "Check the bracket - Winners side",
-                text: "Press Y to see the full double-elimination bracket. The winners rounds run across into the grand finals up top.",
-              },
-              {
-                num: "2b",
-                img: "/gameplay/4.png",
-                title: "Losers Bracket",
-                text: "One loss isn't the end. Press Down to flip to the losers bracket and fight your way back to grand finals.",
-              },
-              {
-                num: "3",
-                img: "/gameplay/5.png",
-                title: "Pick your character",
-                text: "When your match is called you're taken to character select — no rank, no clutter. Choose your main and press Start.",
-              },
-              {
-                num: "4",
-                img: "/gameplay/7.png",
-                title: "Strike for stage",
-                text: "Strike stages to decide where you play. After game one, the loser of the previous game counterpicks the next stage.",
-              },
-              {
-                num: "5",
-                img: "/gameplay/6.png",
-                title: "Play your set",
-                text: "Battle it out best-of-three on Slippi's rollback netcode. The result reports automatically and the bracket advances.",
-              },
-            ].map((step) => (
-              <li key={step.img} className="bg-gray-800 rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="flex-shrink-0 min-w-[2rem] h-8 px-2 rounded-full bg-yellow-600 text-gray-900 font-bold flex items-center justify-center">
-                    {step.num}
-                  </span>
-                  <h2 className="text-xl font-semibold text-white">{step.title}</h2>
-                </div>
-                <p className="text-gray-300 leading-relaxed mb-4">{step.text}</p>
-                <img
-                  src={step.img}
-                  alt={step.title}
-                  className="w-full rounded-lg border border-gray-700"
-                />
-              </li>
-            ))}
-          </ol>
-        </section>
-
         {/* About */}
         <section>
           <h1 className="text-3xl font-bold text-white mb-6">About</h1>
@@ -96,6 +61,31 @@ export default function About() {
               <li>This only works if people show up for the bracket. A no-show three times is a ban.</li>
               <li>Play fair and be respectful. Cheating or harassment is a bannable offense.</li>
             </ol>
+          </div>
+        </section>
+
+        {/* Codebase */}
+        <section>
+          <h1 className="text-3xl font-bold text-white mb-6">Codebase</h1>
+          <div className="bg-gray-800 rounded-xl p-6">
+            <p className="text-gray-300 leading-relaxed mb-5">
+              The whole thing is open source, split across two public repositories on GitHub.
+            </p>
+            <ul className="space-y-5">
+              {REPOS.map((repo) => (
+                <li key={repo.url}>
+                  <a
+                    href={repo.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-yellow-500 hover:text-yellow-400 font-semibold underline break-all"
+                  >
+                    {repo.name}
+                  </a>
+                  <p className="text-gray-300 leading-relaxed mt-1">{repo.text}</p>
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
       </div>
